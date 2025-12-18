@@ -39,13 +39,41 @@ else
 fi
 
 # 3. Setup Virtual Environment or Libs
-cd "$INSTALL_DIR"
+cd "$INSTALL_DIR" || { echo "Error: No se pudo acceder a $INSTALL_DIR"; exit 1; }
+echo "Directorio actual: $(pwd)"
+
+# Find requirements.txt
+REQ_FILE=""
+if [ -f "$INSTALL_DIR/requirements.txt" ]; then
+    REQ_FILE="$INSTALL_DIR/requirements.txt"
+elif [ -f "requirements.txt" ]; then
+    REQ_FILE="$(pwd)/requirements.txt"
+else
+    # Search for it
+    echo "Buscando requirements.txt..."
+    REQ_FILE=$(find "$INSTALL_DIR" -name "requirements.txt" -type f 2>/dev/null | head -1)
+fi
+
+if [ -z "$REQ_FILE" ] || [ ! -f "$REQ_FILE" ]; then
+    echo -e "\e[33m[WARN] No se encontró requirements.txt. Creando uno mínimo...\e[0m"
+    cat > "$INSTALL_DIR/requirements.txt" << 'REQS'
+textual>=0.40.0
+requests
+aiohttp
+psutil
+REQS
+    REQ_FILE="$INSTALL_DIR/requirements.txt"
+fi
+
+echo "Usando: $REQ_FILE"
 echo "Configurando entorno (Instalando dependencias)..."
 
 # Try to use pip to install to local libs directory
-if ! python3 -m pip install --target "$INSTALL_DIR/libs" -r "$INSTALL_DIR/requirements.txt" --break-system-packages 2>/dev/null; then
+if python3 -m pip install --target "$INSTALL_DIR/libs" -r "$REQ_FILE" --break-system-packages 2>/dev/null; then
+    echo -e "\e[32mDependencias instaladas correctamente.\e[0m"
+else
     echo "Intentando instalación alternativa..."
-    python3 -m pip install --user -r "$INSTALL_DIR/requirements.txt" --break-system-packages 2>/dev/null || echo "Advertencia: Algunas dependencias pueden no haberse instalado."
+    python3 -m pip install --user -r "$REQ_FILE" --break-system-packages 2>/dev/null || echo -e "\e[33mAdvertencia: Algunas dependencias pueden no haberse instalado.\e[0m"
 fi
 
 echo "Creando lanzador..."
