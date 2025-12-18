@@ -47,6 +47,41 @@ EOF
 
 chmod +x "$LAUNCHER"
 
+# 4. PATH Handling logic
+CURRENT_PATH="$PATH"
+BIN_DIR="$HOME/.local/bin"
+SHELL_RC=""
+
+if [[ ":$CURRENT_PATH:" != *":$BIN_DIR:"* ]]; then
+    echo -e "\e[33m[!] Alerta: $BIN_DIR no está en tu PATH.\e[0m"
+    
+    # Detect shell
+    if [[ "$SHELL" == */zsh ]]; then
+        SHELL_RC="$HOME/.zshrc"
+    elif [[ "$SHELL" == */bash ]]; then
+        SHELL_RC="$HOME/.bashrc"
+    else
+        SHELL_RC="$HOME/.profile"
+    fi
+
+    # Auto-fix
+    if [ -f "$SHELL_RC" ]; then
+        if ! grep -q "$BIN_DIR" "$SHELL_RC"; then
+            echo "Añadiendo configuración a $SHELL_RC..."
+            echo '' >> "$SHELL_RC"
+            echo '# Added by KubeControlMC' >> "$SHELL_RC"
+            echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$SHELL_RC"
+            echo "Configuración actualizada."
+        fi
+    fi
+    
+    echo -e "\e[31m[IMPORTANTE]\e[0m Para usar el comando inmediatamente, ejecuta:"
+    echo -e "    \e[1msource $SHELL_RC\e[0m"
+    echo "O cierra y abre tu terminal."
+else
+    echo -e "\e[32m[OK] Tu PATH ya está configurado correctamente.\e[0m"
+fi
+
 echo -e "\e[32m[KubeControlMC] Instalación completada!\e[0m"
 echo -e "Puedes mover los archivos del proyecto a: $INSTALL_DIR"
-echo -e "Y ejecutar 'kcmc' (asegúrate de que ~/.local/bin está en tu PATH) o 'python3 main.py' en la carpeta."
+echo -e "Una vez recargada la terminal, ejecuta: \e[1mkcmc\e[0m"
