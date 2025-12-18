@@ -1,10 +1,13 @@
 import asyncio
 import subprocess
+import os
 from typing import Callable, Optional
 
 class ServerController:
     def __init__(self, jar_path: str, java_args: list[str] = None):
         self.jar_path = jar_path
+        # Get the directory containing the JAR file - this is where we'll run the server
+        self.working_dir = os.path.dirname(os.path.abspath(jar_path))
         self.java_args = java_args or ["-Xms1G", "-Xmx2G"]
         self.process: Optional[asyncio.subprocess.Process] = None
         self.output_callback: Optional[Callable[[str], None]] = None
@@ -25,7 +28,8 @@ class ServerController:
                 *cmd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE, # Merge stderr into stdout stream logic usually best, or separate
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.working_dir  # Run server in the JAR's directory
             )
             
             # Start monitoring output

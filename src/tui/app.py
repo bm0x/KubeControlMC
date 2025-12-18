@@ -116,11 +116,26 @@ class MCSMApp(App):
         """Copy all log content to system clipboard."""
         try:
             log_widget = self.query_one("#console-log", RichLog)
-            # Get the plain text from the log
-            # RichLog stores lines internally
+            # Extract plain text from RichLog
+            # RichLog.lines contains Strip objects with Segment children
             lines = []
-            for line in log_widget.lines:
-                lines.append(str(line))
+            for strip in log_widget.lines:
+                # Each Strip has segments, extract text from each
+                line_text = ""
+                if hasattr(strip, '_segments'):
+                    for segment in strip._segments:
+                        if hasattr(segment, 'text'):
+                            line_text += segment.text
+                elif hasattr(strip, 'plain'):
+                    line_text = strip.plain
+                else:
+                    # Fallback: try to get text representation
+                    try:
+                        line_text = strip.text if hasattr(strip, 'text') else ""
+                    except:
+                        pass
+                lines.append(line_text)
+            
             log_text = "\n".join(lines)
             
             # Copy to clipboard using xclip or xsel
