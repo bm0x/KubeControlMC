@@ -89,7 +89,8 @@ class MCSMApp(App):
                 subprocess.run(["open", path])
             else:
                 # Try common file managers first, then fallback to xdg-open
-                file_managers = ["nautilus", "dolphin", "thunar", "nemo", "pcmanfm", "caja"]
+                # io.elementary.files = Elementary OS, nautilus = GNOME, etc.
+                file_managers = ["io.elementary.files", "pantheon-files", "nautilus", "dolphin", "thunar", "nemo", "pcmanfm", "caja"]
                 opened = False
                 for fm in file_managers:
                     try:
