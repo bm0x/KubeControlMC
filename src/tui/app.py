@@ -54,6 +54,7 @@ class MCSMApp(App):
                 Button("Iniciar Túnel (Playit)", id="btn-tunnel", variant="default"),
                 Button("Abrir Carpeta Server", id="btn-open-root", variant="default"),
                 Button("Abrir Plugins", id="btn-open-plugins", variant="default"),
+                Button("Copiar Logs", id="btn-copy-logs", variant="default"),
                 id="tools-area",
                 classes="tools-box"
             ),
@@ -76,21 +77,71 @@ class MCSMApp(App):
         self.call_from_thread(self.log_write, message)
 
     def open_folder(self, folder: str):
-        """Opens a folder in the system file manager."""
+        """Opens a folder in the system file manager (not code editor)."""
         path = os.path.abspath(folder)
         if not os.path.exists(path):
             os.makedirs(path)
             
         try:
             if sys.platform == "win32":
-                os.startfile(path)
+                subprocess.run(["explorer", path])
             elif sys.platform == "darwin":
                 subprocess.run(["open", path])
             else:
-                subprocess.run(["xdg-open", path])
+                # Try common file managers first, then fallback to xdg-open
+                file_managers = ["nautilus", "dolphin", "thunar", "nemo", "pcmanfm", "caja"]
+                opened = False
+                for fm in file_managers:
+                    try:
+                        result = subprocess.run(["which", fm], capture_output=True)
+                        if result.returncode == 0:
+                            subprocess.Popen([fm, path])
+                            opened = True
+                            break
+                    except:
+                        continue
+                
+                if not opened:
+                    # Fallback to gio open or xdg-open
+                    try:
+                        subprocess.Popen(["gio", "open", path])
+                    except:
+                        subprocess.Popen(["xdg-open", path])
+            
             self.log_write(f"[blue]Abriendo carpeta:[/blue] {path}")
         except Exception as e:
             self.log_write(f"[red]Error abriendo carpeta: {e}[/red]")
+
+    def copy_logs_to_clipboard(self):
+        """Copy all log content to system clipboard."""
+        try:
+            log_widget = self.query_one("#console-log", RichLog)
+            # Get the plain text from the log
+            # RichLog stores lines internally
+            lines = []
+            for line in log_widget.lines:
+                lines.append(str(line))
+            log_text = "\n".join(lines)
+            
+            # Copy to clipboard using xclip or xsel
+            try:
+                process = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
+                process.communicate(log_text.encode())
+            except FileNotFoundError:
+                try:
+                    process = subprocess.Popen(["xsel", "--clipboard", "--input"], stdin=subprocess.PIPE)
+                    process.communicate(log_text.encode())
+                except FileNotFoundError:
+                    # Fallback: save to a temp file
+                    temp_file = "/tmp/kcmc_logs.txt"
+                    with open(temp_file, "w") as f:
+                        f.write(log_text)
+                    self.log_write(f"[yellow]Logs guardados en:[/yellow] {temp_file}")
+                    return
+            
+            self.log_write("[green]Logs copiados al portapapeles.[/green]")
+        except Exception as e:
+            self.log_write(f"[red]Error copiando logs: {e}[/red]")
 
     async def safe_restart(self):
         """Performs a safe restart sequence."""
@@ -143,6 +194,8 @@ class MCSMApp(App):
             self.open_folder(self.server_dir)
         elif btn_id == "btn-open-plugins": # Added button handler
             self.open_folder(os.path.join(self.server_dir, "plugins"))
+        elif btn_id == "btn-copy-logs":
+            self.copy_logs_to_clipboard()
         elif btn_id == "btn-exit": # Added button handler
             self.exit()
 
