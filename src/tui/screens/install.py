@@ -3,6 +3,8 @@ from textual.widgets import Label, Button, Select
 from textual.containers import Container, Vertical
 
 class InstallScreen(ModalScreen):
+    """Modal screen for selecting server type to install."""
+    
     CSS = """
     InstallScreen {
         align: center middle;
@@ -24,6 +26,10 @@ class InstallScreen(ModalScreen):
     }
     """
 
+    def __init__(self):
+        super().__init__()
+        self.selected_type = None
+
     def compose(self):
         yield Container(
             Vertical(
@@ -34,20 +40,36 @@ class InstallScreen(ModalScreen):
                     ("Folia (Experimental/Alto Rendimiento)", "folia"),
                     ("Velocity (Proxy)", "velocity")
                 ], prompt="Selecciona una opción", id="select-type"),
-                Button("Instalar", variant="success", id="btn-install", disabled=True),
+                Button("Instalar", variant="success", id="btn-do-install", disabled=True),
+                Button("Cancelar", variant="default", id="btn-cancel"),
                 id="dialog"
             )
         )
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        # Select.BLANK is NOT None, so we must check for it explicitly
-        is_valid = event.value not in (None, Select.BLANK)
-        self.query_one("#btn-install").disabled = not is_valid
+        # Store the selection
+        val = event.value
+        # Check for Select.BLANK (sentinel value when nothing selected)
+        if val is None or val == Select.BLANK:
+            self.selected_type = None
+            self.query_one("#btn-do-install").disabled = True
+        else:
+            self.selected_type = str(val)
+            self.query_one("#btn-do-install").disabled = False
+        self.log(f"[DEBUG] Select changed: {val} -> stored: {self.selected_type}")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-install":
-            sel = self.query_one("#select-type").value
-            # Only dismiss with a valid string value
-            if sel not in (None, Select.BLANK):
-                self.dismiss(str(sel))  # Ensure it's a string
+        btn_id = event.button.id
+        self.log(f"[DEBUG] Button pressed: {btn_id}")
+        
+        if btn_id == "btn-do-install":
+            if self.selected_type:
+                self.log(f"[DEBUG] Dismissing with: {self.selected_type}")
+                self.dismiss(self.selected_type)
+            else:
+                self.log("[DEBUG] No selection, not dismissing")
+        elif btn_id == "btn-cancel":
+            self.log("[DEBUG] Cancelled by user")
+            self.dismiss(None)
+
 
