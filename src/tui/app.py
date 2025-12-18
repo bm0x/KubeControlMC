@@ -190,7 +190,12 @@ class MCSMApp(App):
                     try:
                         result = subprocess.run(["which", fm], capture_output=True)
                         if result.returncode == 0:
-                            subprocess.Popen([fm, path])
+                            subprocess.Popen(
+                                [fm, path],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                start_new_session=True
+                            )
                             opened = True
                             break
                     except:
@@ -199,9 +204,19 @@ class MCSMApp(App):
                 if not opened:
                     # Fallback to gio open or xdg-open
                     try:
-                        subprocess.Popen(["gio", "open", path])
+                        subprocess.Popen(
+                            ["gio", "open", path],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            start_new_session=True
+                        )
                     except:
-                        subprocess.Popen(["xdg-open", path])
+                        subprocess.Popen(
+                            ["xdg-open", path],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            start_new_session=True
+                        )
             
             self.log_write(f"[blue]Abriendo carpeta:[/blue] {path}")
         except Exception as e:
