@@ -88,9 +88,9 @@ class MCSMApp(App):
                 subprocess.run(["open", path])
             else:
                 subprocess.run(["xdg-open", path])
-            self.log_write_safe(f"[blue]Abriendo carpeta:[/blue] {path}")
+            self.log_write(f"[blue]Abriendo carpeta:[/blue] {path}")
         except Exception as e:
-            self.log_write_safe(f"[red]Error abriendo carpeta: {e}[/red]")
+            self.log_write(f"[red]Error abriendo carpeta: {e}[/red]")
 
     async def safe_restart(self):
         """Performs a safe restart sequence."""
