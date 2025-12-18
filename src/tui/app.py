@@ -30,7 +30,7 @@ class MCSMApp(App):
         
         self.jar_manager = JarManager(download_dir=self.server_dir)
         self.plugin_manager = PluginManager(plugins_dir=os.path.join(self.server_dir, "plugins"))
-        self.tunnel_manager = TunnelManager()
+        self.tunnel_manager = TunnelManager(bin_dir=self.server_dir)
         self.tunnel_manager.set_callback(self.log_write_safe)
         
         self.server_controller = None
@@ -327,14 +327,20 @@ class MCSMApp(App):
         threading.Thread(target=_do_install).start()
 
     def toggle_tunnel(self):
-        if self.tunnel_manager.process:
-            asyncio.create_task(self.tunnel_manager.stop())
-            self.query_one("#btn-tunnel").variant = "default"
-            self.query_one("#btn-tunnel").label = "Iniciar Túnel"
-        else:
-            asyncio.create_task(self.tunnel_manager.start())
-            self.query_one("#btn-tunnel").variant = "warning"
-            self.query_one("#btn-tunnel").label = "Detener Túnel"
+        self.log_write("[dim]Toggle tunnel llamado...[/dim]")
+        try:
+            if self.tunnel_manager.process:
+                self.log_write("[cyan]Deteniendo túnel...[/cyan]")
+                asyncio.create_task(self.tunnel_manager.stop())
+                self.query_one("#btn-tunnel").variant = "default"
+                self.query_one("#btn-tunnel").label = "Iniciar Túnel"
+            else:
+                self.log_write("[cyan]Iniciando túnel Playit.gg...[/cyan]")
+                asyncio.create_task(self.tunnel_manager.start())
+                self.query_one("#btn-tunnel").variant = "warning"
+                self.query_one("#btn-tunnel").label = "Detener Túnel"
+        except Exception as e:
+            self.log_write(f"[red]Error en toggle_tunnel: {e}[/red]")
 
 
     async def start_server(self):

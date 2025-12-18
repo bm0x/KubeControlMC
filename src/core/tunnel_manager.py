@@ -36,13 +36,19 @@ class TunnelManager:
             raise e
 
     async def start(self):
+        if self.callback:
+            self.callback(f"[dim]Verificando agente en: {self.agent_path}[/dim]")
+        
         if not os.path.exists(self.agent_path):
             try:
                 self.download_agent()
-            except:
+            except Exception as e:
+                if self.callback:
+                    self.callback(f"[red]Error descargando agente: {e}[/red]")
                 return
 
-        self.callback("Starting Playit.gg tunnel...")
+        if self.callback:
+            self.callback("[cyan]Ejecutando Playit.gg...[/cyan]")
         
         try:
             # Playit runs interactively usually, but we run it to checking output
@@ -51,11 +57,15 @@ class TunnelManager:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
+            if self.callback:
+                self.callback(f"[green]Túnel iniciado con PID: {self.process.pid}[/green]")
             asyncio.create_task(self._read_stream(self.process.stdout))
             asyncio.create_task(self._read_stream(self.process.stderr, is_error=True))
         
         except Exception as e:
-            self.callback(f"Failed to start tunnel: {e}")
+            if self.callback:
+                import traceback
+                self.callback(f"[red]Error al iniciar túnel: {e}[/red]")
 
     async def _read_stream(self, stream, is_error=False):
         while True:
