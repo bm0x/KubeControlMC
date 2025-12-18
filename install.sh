@@ -17,13 +17,25 @@ fi
 
 # 2. Setup Directory
 if [ -d "$INSTALL_DIR" ]; then
-    echo "Directorio $INSTALL_DIR ya existe. Actualizando..."
-    # In a real scenario, valid git logic here. For now, we assume this script stays with the files.
+    echo "Directorio $INSTALL_DIR ya existe. Eliminando versión anterior..."
+    rm -rf "$INSTALL_DIR"
+fi
+
+echo "Instalando en $INSTALL_DIR..."
+mkdir -p "$INSTALL_DIR"
+
+# Check if we are running locally (installer next to main.py)
+if [ -f "main.py" ]; then
+    echo "Detectada instalación local. Copiando archivos..."
+    cp -r ./* "$INSTALL_DIR/"
 else
-    echo "Creando directorio en $INSTALL_DIR..."
-    mkdir -p "$INSTALL_DIR"
-    # Copy current files to install dir (Simulation of git clone)
-    # cp -r ./* "$INSTALL_DIR"
+    echo "Instalación remota. Clonando repositorio..."
+    if command -v git &> /dev/null; then
+        git clone "$REPO_URL" "$INSTALL_DIR"
+    else
+        echo "Error: Git no está instalado y no se encontraron archivos locales."
+        exit 1
+    fi
 fi
 
 # 3. Setup Virtual Environment or Libs
