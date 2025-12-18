@@ -143,9 +143,69 @@ class MCSMApp(App):
         elif btn_id == "btn-exit": # Added button handler
             self.exit()
 
+    def log_write(self, message: str) -> None:
+        """Write to the console log widget safely."""
+        log = self.query_one(Log)
+        log.write(message)
+
     def on_mount(self) -> None:
         self.log_write("[bold green]Bienvenido a KubeControlMC[/]")
         self.log_write("[italic]Gestor de Servidores Minecraft Avanzado[/italic]")
+        self.check_installation()
+
+    def check_installation(self):
+        # Simple check: look for any .jar in server_bin
+        if not os.path.exists(self.server_dir):
+            os.makedirs(self.server_dir)
+            
+        jars = [f for f in os.listdir(self.server_dir) if f.endswith(".jar")]
+        if jars:
+            self.current_jar = os.path.join(self.server_dir, jars[0])
+            self.log_write(f"[blue]Detectado JAR:[/blue] {jars[0]}")
+            self.query_one("#btn-start").disabled = False
+            self.query_one("#btn-install").label = "Actualizar/Cambiar"
+            self.query_one("#status-label").update("Estado: LISTO PARA INICIAR")
+        else:
+            self.log_write("[yellow]No se detectó ningún servidor instalado.[/yellow]")
+            self.open_install_screen()
+
+    def open_install_screen(self):
+        def install_callback(project_type: str):
+            if project_type:
+                self.install_server(project_type)
+        
+        self.push_screen(InstallScreen(), install_callback)
+
+    def install_server(self, project: str):
+        self.log_write(f"[cyan]Iniciando descarga de {project}...[/cyan]")
+        self.project_type = project
+        self.run_worker(self.async_install(project), exclusive=True, thread=True)
+
+    async def async_install(self, project: str):
+        try:
+            version = self.jar_manager.get_latest_version(project)
+            if not version:
+                raise Exception("No se encontraron versiones")
+            
+            self.log_write(f"Versión más reciente: {version}")
+            path = self.jar_manager.download_jar(project, version)
+            
+            self.current_jar = path
+            self.log_write(f"[green]Descarga completada:[/green] {path}")
+            
+            # Ensure EULA
+            ConfigManager.ensure_eula(self.server_dir)
+            self.log_write("EULA aceptado automáticamente.")
+            
+        except Exception as e:
+            self.log_write(f"[bold red]Error en instalación:[/bold red] {e}")
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.state == WorkerState.FINISHED:
+            if self.current_jar:
+                self.query_one("#btn-start").disabled = False
+                self.query_one("#status-label").update("Estado: INSTALADO")
+                self.log_write("[green]¡Instalación lista! Presiona Iniciar.[/green]")
 
     def install_geyser(self):
         self.log_write("[cyan]Instalando Geyser y Floodgate...[/cyan]")
