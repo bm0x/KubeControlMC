@@ -74,11 +74,26 @@ class TunnelManager:
                 break
             try:
                 decoded = line.decode('utf-8', errors='replace').strip()
-                # Filter useful info
-                if "https://playit.gg/claim/" in decoded or "TUNNEL" in decoded:
-                    self.callback(f"[bold magenta][TUNNEL] {decoded}[/]")
-            except:
-                pass
+                if not decoded:
+                    continue
+                    
+                # Always show output, but format important lines specially
+                if self.callback:
+                    if "https://" in decoded or "claim" in decoded.lower():
+                        # Important: claim URL or links
+                        self.callback(f"[bold magenta][TUNNEL] {decoded}[/]")
+                    elif "error" in decoded.lower() or "failed" in decoded.lower():
+                        # Errors
+                        self.callback(f"[red][TUNNEL] {decoded}[/red]")
+                    elif "started" in decoded.lower() or "ready" in decoded.lower() or "connected" in decoded.lower():
+                        # Success messages
+                        self.callback(f"[green][TUNNEL] {decoded}[/green]")
+                    else:
+                        # Normal output
+                        self.callback(f"[dim][TUNNEL] {decoded}[/dim]")
+            except Exception as e:
+                if self.callback:
+                    self.callback(f"[red][TUNNEL ERROR] {e}[/red]")
 
     async def stop(self):
         if self.process:
