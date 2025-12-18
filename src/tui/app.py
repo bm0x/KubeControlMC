@@ -31,7 +31,7 @@ class MCSMApp(App):
         self.jar_manager = JarManager(download_dir=self.server_dir)
         self.plugin_manager = PluginManager(plugins_dir=os.path.join(self.server_dir, "plugins"))
         self.tunnel_manager = TunnelManager(bin_dir=self.server_dir)
-        self.tunnel_manager.set_callback(self.log_write_universal)
+        self.tunnel_manager.set_callback(self.tunnel_callback_universal)
         
         self.server_controller = None
         self.resource_watcher = None
@@ -44,6 +44,7 @@ class MCSMApp(App):
         yield Container(
             Vertical(
                 Label("Estado del Servidor: DESCONOCIDO", id="status-label"),
+                Label("Túnel: Inactivo", id="tunnel-status"),
                 RichLog(id="console-log", markup=True, highlight=True),
                 Input(placeholder="Escribe un comando...", id="console-input", disabled=True),
                 id="console-area"
@@ -73,6 +74,44 @@ class MCSMApp(App):
 
     # ... existing methods ...
     
+    def on_tunnel_message(self, message: str) -> None:
+        """Handle messages specifically from the tunnel manager."""
+        # Clean up message for display
+        clean_msg = message.replace("[TUNNEL]", "").strip()
+        
+        # 1. Update Status Bar logic
+        status_label = self.query_one("#tunnel-status")
+        
+        if "https://" in message or "claim" in message.lower():
+            # Found a claim URL!
+            status_label.display = True
+            status_label.update(clean_msg) # Rich text will render links
+            status_label.styles.background = "magenta"
+            # Also log clearly to console
+            self.log_write_universal(message)
+            
+        elif "tunnel running" in message.lower() or "tunnels registered" in message.lower():
+            # Tunnel is active
+            status_label.display = True
+            status_label.update("Túnel: ACTIVO (Playit.gg)")
+            status_label.styles.background = "green"
+        
+        elif "stopped" in message.lower() or "detenido" in message.lower():
+            status_label.display = False
+            status_label.update("Túnel: Inactivo")
+        
+        elif "error" in message.lower() or "failed" in message.lower():
+             # Errors always go to log
+             self.log_write_universal(message)
+        
+        # 2. Avoid spamming the main log with every single heartbeat
+        # Only log important events to the main console
+        if "error" in message.lower() or "claim" in message.lower() or "started" in message.lower():
+            pass # Already logged above or needs logging
+        else:
+             # Debug info ignored from main log to reduce spam
+             pass
+
     def log_write_safe(self, message: str) -> None:
         """Callback for NON-async thread context only (uses call_from_thread)."""
         self.call_from_thread(self.log_write, message)
@@ -90,7 +129,15 @@ class MCSMApp(App):
                 self.call_later(lambda: self.log_write(message))
         else:
             # We're in a different thread, use call_from_thread
-            self.call_from_thread(self.log_write, message)
+            self.call_from_thread(self.log_write, message) 
+            
+    def tunnel_callback_universal(self, message: str):
+        """Universal callback specifically for tunnel messages."""
+        import threading
+        if threading.current_thread() is threading.main_thread():
+            self.on_tunnel_message(message)
+        else:
+            self.call_from_thread(self.on_tunnel_message, message)
 
     def open_folder(self, folder: str):
         """Opens a folder in the system file manager (not code editor)."""

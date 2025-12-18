@@ -16,7 +16,16 @@ Screen {
     background: $primary;
     color: $text;
     width: 100%;
+    margin-bottom: 0;
+}
+
+#tunnel-status {
+    text-align: center;
+    background: $secondary;
+    color: $text;
+    width: 100%;
     margin-bottom: 1;
+    display: none; /* Hidden by default */
 }
 
 #console-area {
