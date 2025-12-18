@@ -36,7 +36,7 @@ if ! python3 -m pip install --target "$INSTALL_DIR/libs" -r requirements.txt --b
 fi
 
 echo "Creando lanzador..."
-LAUNCHER="$HOME/.local/bin/mcsm"
+LAUNCHER="$HOME/.local/bin/kcmc"
 mkdir -p "$HOME/.local/bin"
 
 cat <<EOF > "$LAUNCHER"
@@ -47,6 +47,6 @@ EOF
 
 chmod +x "$LAUNCHER"
 
-echo -e "\e[32m[MCSM] Instalación completada!\e[0m"
+echo -e "\e[32m[KubeControlMC] Instalación completada!\e[0m"
 echo -e "Puedes mover los archivos del proyecto a: $INSTALL_DIR"
-echo -e "Y ejecutar 'mcsm' (asegúrate de que ~/.local/bin está en tu PATH) o 'python3 main.py' en la carpeta."
+echo -e "Y ejecutar 'kcmc' (asegúrate de que ~/.local/bin está en tu PATH) o 'python3 main.py' en la carpeta."

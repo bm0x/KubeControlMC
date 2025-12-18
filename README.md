@@ -24,7 +24,7 @@ Copia y pega este comando en tu terminal de Linux. El asistente se encargará de
 curl -sL https://raw.githubusercontent.com/TU_USUARIO/KubeControlMC/main/install.sh | bash
 ```
 
-> **Nota**: El instalador descargará las dependencias necesarias y creará el comando `mcsm` en tu sistema.
+> **Nota**: El instalador descargará las dependencias necesarias y creará el comando `kcmc` en tu sistema.
 
 ---
 
@@ -33,7 +33,7 @@ curl -sL https://raw.githubusercontent.com/TU_USUARIO/KubeControlMC/main/install
 Una vez instalado, no necesitas navegar a ninguna carpeta extraña. Simplemente abre tu terminal en cualquier lugar y escribe:
 
 ```bash
-mcsm
+kcmc
 ```
 
 ### Primeros Pasos
@@ -45,7 +45,7 @@ mcsm
 
 ## ❓ Preguntas Frecuentes
 
-**¿El comando `mcsm` no funciona?**
+**¿El comando `kcmc` no funciona?**
 Es probable que tu sistema no esté leyendo la carpeta de programas locales. Ejecuta esto y prueba de nuevo:
 ```bash
 export PATH=$PATH:$HOME/.local/bin
