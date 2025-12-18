@@ -59,16 +59,24 @@ class TunnelManager:
             while not self._stop_reading and self._master_fd is not None:
                 # Use select to avoid blocking forever
                 try:
-                    ready, _, _ = select.select([self._master_fd], [], [], 0.5)
+                    ready, _, _ = select.select([self._master_fd], [], [], 0.1)
                     if not ready:
-                        continue
+                        # If we have data in buffer containing a URL but no newline arrived for a while,
+                        # imply a line break to ensure it gets shown (e.g. prompts)
+                        if buffer and ("https://" in buffer or "claim" in buffer.lower()):
+                             buffer += "\n"
+                        else:
+                            continue
                     
-                    data = os.read(self._master_fd, 4096)
-                    if not data:
-                        break
-                    
-                    decoded = data.decode('utf-8', errors='replace')
-                    buffer += decoded
+                    if ready:
+                        data = os.read(self._master_fd, 1024) # Read smaller chunks
+                        if not data:
+                            break
+                        
+                        decoded = data.decode('utf-8', errors='replace')
+                        # Normalize carriage returns to newlines to handle progress bars/prompts
+                        decoded = decoded.replace('\r\n', '\n').replace('\r', '\n')
+                        buffer += decoded
                     
                     # Process complete lines
                     while '\n' in buffer:
@@ -115,12 +123,17 @@ class TunnelManager:
             master_fd, slave_fd = pty.openpty()
             self._master_fd = master_fd
             
+            # Set TERM to dumb or xterm to avoid complex cursor movements if possible
+            env = os.environ.copy()
+            env["TERM"] = "xterm"
+            
             self.process = subprocess.Popen(
                 [self.agent_path],
                 stdin=slave_fd,
                 stdout=slave_fd,
                 stderr=slave_fd,
-                close_fds=True
+                close_fds=True,
+                env=env
             )
             
             # Close slave in parent process
