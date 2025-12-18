@@ -31,7 +31,7 @@ class MCSMApp(App):
         self.jar_manager = JarManager(download_dir=self.server_dir)
         self.plugin_manager = PluginManager(plugins_dir=os.path.join(self.server_dir, "plugins"))
         self.tunnel_manager = TunnelManager(bin_dir=self.server_dir)
-        self.tunnel_manager.set_callback(self.log_write_safe)
+        self.tunnel_manager.set_callback(self.log_write_universal)
         
         self.server_controller = None
         self.resource_watcher = None
@@ -74,8 +74,23 @@ class MCSMApp(App):
     # ... existing methods ...
     
     def log_write_safe(self, message: str) -> None:
-        """Callback suitable for non-async context or threads, schedules update."""
+        """Callback for NON-async thread context only (uses call_from_thread)."""
         self.call_from_thread(self.log_write, message)
+
+    def log_write_universal(self, message: str) -> None:
+        """Smart callback that works from both async context and threads."""
+        import threading
+        # Check if we're in the main thread (where Textual runs)
+        if threading.current_thread() is threading.main_thread():
+            # We're in the main thread, use direct write
+            try:
+                self.log_write(message)
+            except Exception:
+                # If that fails, try scheduling it
+                self.call_later(lambda: self.log_write(message))
+        else:
+            # We're in a different thread, use call_from_thread
+            self.call_from_thread(self.log_write, message)
 
     def open_folder(self, folder: str):
         """Opens a folder in the system file manager (not code editor)."""
