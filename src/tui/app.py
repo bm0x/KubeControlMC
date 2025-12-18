@@ -173,38 +173,67 @@ class MCSMApp(App):
             self.open_install_screen()
 
     def open_install_screen(self):
-        def install_callback(project_type: str):
-            if project_type:
+        """Opens the install modal. Guards against being called multiple times."""
+        # Prevent opening multiple times
+        if hasattr(self, '_install_screen_open') and self._install_screen_open:
+            self.log_write("[dim]Pantalla de instalación ya abierta.[/dim]")
+            return
+        
+        self._install_screen_open = True
+        
+        def install_callback(project_type):
+            self._install_screen_open = False
+            self.log_write(f"[dim]Callback recibido: {project_type} (tipo: {type(project_type).__name__})[/dim]")
+            
+            # Validate the result
+            if project_type and isinstance(project_type, str) and project_type in ("paper", "folia", "velocity"):
                 self.install_server(project_type)
+            else:
+                self.log_write("[yellow]Instalación cancelada o selección inválida.[/yellow]")
         
         self.push_screen(InstallScreen(), install_callback)
 
     def install_server(self, project: str):
         self.log_write(f"[cyan]Iniciando descarga de {project}...[/cyan]")
         self.project_type = project
-        # Use thread=True with a SYNC function (not async)
-        self.run_worker(self._do_install_sync, exclusive=True, thread=True)
+        
+        # Run in a thread - pass a lambda to ensure method is called correctly
+        def do_work():
+            return self._do_install_sync()
+        
+        self.run_worker(do_work, exclusive=True, thread=True)
 
     def _do_install_sync(self):
         """Synchronous installation worker (runs in thread)."""
+        self.call_from_thread(self.log_write, "[dim]Worker iniciado...[/dim]")
         try:
             project = self.project_type
+            self.call_from_thread(self.log_write, f"[dim]Buscando versiones para: {project}[/dim]")
+            
             version = self.jar_manager.get_latest_version(project)
             if not version:
-                raise Exception("No se encontraron versiones")
+                raise Exception(f"No se encontraron versiones para '{project}'")
             
             self.call_from_thread(self.log_write, f"Versión más reciente: {version}")
+            
+            self.call_from_thread(self.log_write, "[dim]Iniciando descarga...[/dim]")
             path = self.jar_manager.download_jar(project, version)
             
             self.current_jar = path
             self.call_from_thread(self.log_write, f"[green]Descarga completada:[/green] {path}")
             
             # Ensure EULA
+            self.call_from_thread(self.log_write, "[dim]Configurando EULA...[/dim]")
             ConfigManager.ensure_eula(self.server_dir)
             self.call_from_thread(self.log_write, "EULA aceptado automáticamente.")
             
+            return True  # Signal success
+            
         except Exception as e:
+            import traceback
             self.call_from_thread(self.log_write, f"[bold red]Error en instalación:[/bold red] {e}")
+            self.call_from_thread(self.log_write, f"[dim]{traceback.format_exc()}[/dim]")
+            return False
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.state == WorkerState.SUCCESS:

@@ -40,9 +40,14 @@ class InstallScreen(ModalScreen):
         )
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        self.query_one("#btn-install").disabled = event.value is None
+        # Select.BLANK is NOT None, so we must check for it explicitly
+        is_valid = event.value not in (None, Select.BLANK)
+        self.query_one("#btn-install").disabled = not is_valid
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-install":
             sel = self.query_one("#select-type").value
-            self.dismiss(sel)
+            # Only dismiss with a valid string value
+            if sel not in (None, Select.BLANK):
+                self.dismiss(str(sel))  # Ensure it's a string
+
