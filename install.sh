@@ -39,12 +39,13 @@ else
 fi
 
 # 3. Setup Virtual Environment or Libs
+cd "$INSTALL_DIR"
 echo "Configurando entorno (Instalando dependencias)..."
 
 # Try to use pip to install to local libs directory
-if ! python3 -m pip install --target "$INSTALL_DIR/libs" -r requirements.txt --break-system-packages; then
-    echo "Error instalando dependencias con pip. Intentando '--user' fallback..."
-    python3 -m pip install --user -r requirements.txt --break-system-packages
+if ! python3 -m pip install --target "$INSTALL_DIR/libs" -r "$INSTALL_DIR/requirements.txt" --break-system-packages 2>/dev/null; then
+    echo "Intentando instalación alternativa..."
+    python3 -m pip install --user -r "$INSTALL_DIR/requirements.txt" --break-system-packages 2>/dev/null || echo "Advertencia: Algunas dependencias pueden no haberse instalado."
 fi
 
 echo "Creando lanzador..."
