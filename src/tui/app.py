@@ -3,7 +3,7 @@ import os
 import sys
 import subprocess
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Button, Label, Log, Input
+from textual.widgets import Header, Footer, Button, Label, Input, RichLog
 from textual.containers import Container, Vertical, Horizontal
 from textual.worker import Worker, WorkerState
 
@@ -44,7 +44,7 @@ class MCSMApp(App):
         yield Container(
             Vertical(
                 Label("Estado del Servidor: DESCONOCIDO", id="status-label"),
-                Log(id="console-log"),
+                RichLog(id="console-log", markup=True, highlight=True),
                 Input(placeholder="Escribe un comando...", id="console-input", disabled=True),
                 id="console-area"
             ),
@@ -147,8 +147,8 @@ class MCSMApp(App):
             self.exit()
 
     def log_write(self, message: str) -> None:
-        """Write to the console log widget safely."""
-        log = self.query_one(Log)
+        """Write to the console log widget with Rich markup support."""
+        log = self.query_one("#console-log", RichLog)
         log.write(message)
 
     def on_mount(self) -> None:
