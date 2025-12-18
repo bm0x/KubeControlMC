@@ -55,6 +55,7 @@ class MCSMApp(App):
                 Button("Abrir Carpeta Server", id="btn-open-root", variant="default"),
                 Button("Abrir Plugins", id="btn-open-plugins", variant="default"),
                 Button("Copiar Logs", id="btn-copy-logs", variant="default"),
+                Button("🔄 Actualizar App", id="btn-update-app", variant="primary"),
                 id="tools-area",
                 classes="tools-box"
             ),
@@ -159,6 +160,52 @@ class MCSMApp(App):
         except Exception as e:
             self.log_write(f"[red]Error copiando logs: {e}[/red]")
 
+    def update_app(self):
+        """Update the application from GitHub and restart."""
+        self.log_write("[cyan]🔄 Buscando actualizaciones...[/cyan]")
+        
+        def _do_update():
+            try:
+                # Run git pull in the base directory
+                result = subprocess.run(
+                    ["git", "pull", "origin", "main"],
+                    cwd=self.base_dir,
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    output = result.stdout.strip()
+                    if "Already up to date" in output or "Ya está actualizado" in output:
+                        self.call_from_thread(self.log_write, "[green]✓ Ya tienes la última versión.[/green]")
+                    else:
+                        self.call_from_thread(self.log_write, f"[green]✓ Actualización descargada:[/green]\n{output}")
+                        self.call_from_thread(self.log_write, "[bold yellow]⚠ Reiniciando aplicación en 3 segundos...[/bold yellow]")
+                        
+                        # Schedule restart
+                        import time
+                        time.sleep(3)
+                        
+                        # Restart by executing the launcher again
+                        self.call_from_thread(self._restart_app)
+                else:
+                    self.call_from_thread(self.log_write, f"[red]Error en git pull: {result.stderr}[/red]")
+                    
+            except FileNotFoundError:
+                self.call_from_thread(self.log_write, "[red]Git no está instalado. No se puede actualizar.[/red]")
+            except Exception as e:
+                self.call_from_thread(self.log_write, f"[red]Error actualizando: {e}[/red]")
+        
+        import threading
+        threading.Thread(target=_do_update).start()
+
+    def _restart_app(self):
+        """Restart the application."""
+        self.log_write("[dim]Reiniciando...[/dim]")
+        # Exit current app and restart via launcher
+        python = sys.executable
+        os.execl(python, python, os.path.join(self.base_dir, "main.py"))
+
     async def safe_restart(self):
         """Performs a safe restart sequence."""
         if not self.server_controller or not self.server_controller.process:
@@ -212,6 +259,8 @@ class MCSMApp(App):
             self.open_folder(os.path.join(self.server_dir, "plugins"))
         elif btn_id == "btn-copy-logs":
             self.copy_logs_to_clipboard()
+        elif btn_id == "btn-update-app":
+            self.update_app()
         elif btn_id == "btn-exit": # Added button handler
             self.exit()
 
