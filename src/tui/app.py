@@ -24,14 +24,17 @@ class MCSMApp(App):
     
     def __init__(self):
         super().__init__()
-        self.jar_manager = JarManager()
-        self.plugin_manager = PluginManager()
+        # Use absolute path relative to this script's location
+        self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.server_dir = os.path.join(self.base_dir, "server_bin")
+        
+        self.jar_manager = JarManager(download_dir=self.server_dir)
+        self.plugin_manager = PluginManager(plugins_dir=os.path.join(self.server_dir, "plugins"))
         self.tunnel_manager = TunnelManager()
-        self.tunnel_manager.set_callback(self.log_write_safe) # Use safe wrapper
+        self.tunnel_manager.set_callback(self.log_write_safe)
         
         self.server_controller = None
         self.resource_watcher = None
-        self.server_dir = "server_bin"
         self.current_jar = None
         self.project_type = None
 
@@ -179,29 +182,32 @@ class MCSMApp(App):
     def install_server(self, project: str):
         self.log_write(f"[cyan]Iniciando descarga de {project}...[/cyan]")
         self.project_type = project
-        self.run_worker(self.async_install(project), exclusive=True, thread=True)
+        # Use thread=True with a SYNC function (not async)
+        self.run_worker(self._do_install_sync, exclusive=True, thread=True)
 
-    async def async_install(self, project: str):
+    def _do_install_sync(self):
+        """Synchronous installation worker (runs in thread)."""
         try:
+            project = self.project_type
             version = self.jar_manager.get_latest_version(project)
             if not version:
                 raise Exception("No se encontraron versiones")
             
-            self.log_write(f"Versión más reciente: {version}")
+            self.call_from_thread(self.log_write, f"Versión más reciente: {version}")
             path = self.jar_manager.download_jar(project, version)
             
             self.current_jar = path
-            self.log_write(f"[green]Descarga completada:[/green] {path}")
+            self.call_from_thread(self.log_write, f"[green]Descarga completada:[/green] {path}")
             
             # Ensure EULA
             ConfigManager.ensure_eula(self.server_dir)
-            self.log_write("EULA aceptado automáticamente.")
+            self.call_from_thread(self.log_write, "EULA aceptado automáticamente.")
             
         except Exception as e:
-            self.log_write(f"[bold red]Error en instalación:[/bold red] {e}")
+            self.call_from_thread(self.log_write, f"[bold red]Error en instalación:[/bold red] {e}")
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        if event.state == WorkerState.FINISHED:
+        if event.state == WorkerState.SUCCESS:
             if self.current_jar:
                 self.query_one("#btn-start").disabled = False
                 self.query_one("#status-label").update("Estado: INSTALADO")
