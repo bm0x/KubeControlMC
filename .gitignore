@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Project specific
+server_bin/
+libs/
+*.log
+
+# IDE
+.vscode/
+.idea/

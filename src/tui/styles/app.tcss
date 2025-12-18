@@ -1,0 +1,49 @@
+Screen {
+    align: center middle;
+    layout: vertical;
+}
+
+#main-container {
+    width: 90%;
+    height: 90%;
+    border: solid $accent;
+    background: $surface;
+    padding: 1;
+}
+
+#status-label {
+    text-align: center;
+    background: $primary;
+    color: $text;
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#console-area {
+    height: 1fr;
+    border: solid $secondary;
+    margin-bottom: 1;
+}
+
+#console-log {
+    height: 1fr;
+    background: $boost;
+    color: $text;
+    overflow-y: scroll;
+}
+
+#controls-area {
+    height: auto;
+    align: center bottom;
+}
+
+#tools-area {
+    height: auto;
+    align: center bottom;
+    padding-bottom: 1;
+}
+
+Button {
+    margin: 0 1;
+}
+

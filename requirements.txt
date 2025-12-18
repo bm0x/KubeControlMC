@@ -1,0 +1,4 @@
+textual>=0.40.0
+requests
+aiohttp
+psutil
