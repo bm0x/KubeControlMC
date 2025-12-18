@@ -4,7 +4,7 @@
 # Installs Python dependencies and sets up the environment in a safe location.
 
 INSTALL_DIR="$HOME/mcsm"
-REPO_URL="https://github.com/bm0x/KubeControlMC.git" # Actualizar con tu usuario real
+REPO_URL="https://github.com/bm0x/KubeControlMC.git"
 PYTHON_BIN="python3"
 
 echo -e "\e[32m[KubeControlMC] Iniciando instalador...\e[0m"
