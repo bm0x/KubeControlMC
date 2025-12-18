@@ -90,11 +90,38 @@ class MCSMApp(App):
             # Also log clearly to console
             self.log_write_universal(message)
             
+        elif "=>" in message and (("ply.gg" in message) or ("tunnel" in message.lower())):
+             # EXTRACT ADDRESS: example "she-ryan.gl.at.ply.gg:11188 => 127.0.0.1:11188"
+             try:
+                 # Split by arrow
+                 parts = clean_msg.split("=>")
+                 if len(parts) >= 1:
+                     # Get left side (public addr)
+                     full_addr = parts[0].strip()
+                     # If it has extra text at start, try to clean it
+                     if " " in full_addr:
+                         full_addr = full_addr.split(" ")[-1]
+                     
+                     status_label.display = True
+                     status_label.update(f"Túnel: [bold]{full_addr}[/bold] (Copiado)")
+                     status_label.styles.background = "green"
+                     
+                     # Auto-copy to clipboard
+                     try:
+                         process = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
+                         process.communicate(full_addr.encode())
+                         self.log_write_universal(f"[green]Dirección copiada: {full_addr}[/green]")
+                     except:
+                         pass
+             except:
+                 pass
+
         elif "tunnel running" in message.lower() or "tunnels registered" in message.lower():
-            # Tunnel is active
-            status_label.display = True
-            status_label.update("Túnel: ACTIVO (Playit.gg)")
-            status_label.styles.background = "green"
+            # Only update if not already showing an address
+            if "ply.gg" not in str(status_label.renderable):
+                status_label.display = True
+                status_label.update("Túnel: ACTIVO (Playit.gg)")
+                status_label.styles.background = "green"
         
         elif "stopped" in message.lower() or "detenido" in message.lower():
             status_label.display = False
@@ -106,7 +133,7 @@ class MCSMApp(App):
         
         # 2. Avoid spamming the main log with every single heartbeat
         # Only log important events to the main console
-        if "error" in message.lower() or "claim" in message.lower() or "started" in message.lower():
+        if "error" in message.lower() or "claim" in message.lower() or "started" in message.lower() or "=>" in message:
             pass # Already logged above or needs logging
         else:
              # Debug info ignored from main log to reduce spam
