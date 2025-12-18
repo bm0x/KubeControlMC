@@ -5,8 +5,9 @@ import subprocess
 from typing import Callable, Optional
 
 class TunnelManager:
-    PLAYIT_URL = "https://playit.gg/downloads/playit-linux_x86-64/latest"
-    # Note: URL might need adjustment based on specific version reliability
+    # GitHub releases URL for playit-agent
+    PLAYIT_URL = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64"
+    # Note: This is for x86_64 Linux. For ARM use playit-linux-aarch64
 
     def __init__(self, bin_dir="server_bin"):
         self.bin_dir = bin_dir
