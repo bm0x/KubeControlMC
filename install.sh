@@ -9,13 +9,65 @@ PYTHON_BIN="python3"
 
 echo -e "\e[32m[KubeControlMC] Iniciando instalador...\e[0m"
 
-# 1. Check Python
+# 1. Check and install dependencies on APT-based systems (Debian/Ubuntu)
+if command -v apt-get &> /dev/null; then
+    echo "Sistema basado en APT detectado. Verificando dependencias..."
+    
+    MISSING_DEPS=()
+    
+    # Check for python3
+    if ! command -v python3 &> /dev/null; then
+        echo "  - python3: No encontrado"
+        MISSING_DEPS+=("python3")
+    else
+        echo "  - python3: OK"
+    fi
+    
+    # Check for python3-pip
+    if ! python3 -m pip --version &> /dev/null; then
+        echo "  - python3-pip: No encontrado"
+        MISSING_DEPS+=("python3-pip")
+    else
+        echo "  - python3-pip: OK"
+    fi
+    
+    # Check for git
+    if ! command -v git &> /dev/null; then
+        echo "  - git: No encontrado"
+        MISSING_DEPS+=("git")
+    else
+        echo "  - git: OK"
+    fi
+    
+    # Install missing dependencies if any
+    if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+        echo -e "\e[33mInstalando dependencias faltantes: ${MISSING_DEPS[*]}\e[0m"
+        
+        # Try without sudo first
+        if apt-get update && apt-get install -y "${MISSING_DEPS[@]}" 2>/dev/null; then
+            echo -e "\e[32mDependencias instaladas correctamente.\e[0m"
+        else
+            # If that fails, try with sudo
+            echo "Intentando instalación con privilegios de administrador..."
+            if sudo apt-get update && sudo apt-get install -y "${MISSING_DEPS[@]}"; then
+                echo -e "\e[32mDependencias instaladas correctamente.\e[0m"
+            else
+                echo -e "\e[31mError: No se pudieron instalar las dependencias automáticamente.\e[0m"
+                echo "Por favor instala manualmente: ${MISSING_DEPS[*]}"
+            fi
+        fi
+    else
+        echo -e "\e[32mTodas las dependencias están instaladas.\e[0m"
+    fi
+fi
+
+# 2. Final check for Python (abort if not found)
 if ! command -v $PYTHON_BIN &> /dev/null; then
     echo "Python 3 no encontrado. Por favor instálalo."
     exit 1
 fi
 
-# 2. Setup Directory
+# 3. Setup Directory
 if [ -d "$INSTALL_DIR" ]; then
     echo "Directorio $INSTALL_DIR ya existe. Eliminando versión anterior..."
     rm -rf "$INSTALL_DIR"
@@ -38,7 +90,7 @@ else
     fi
 fi
 
-# 3. Setup Virtual Environment or Libs
+# 4. Setup Virtual Environment or Libs
 cd "$INSTALL_DIR" || { echo "Error: No se pudo acceder a $INSTALL_DIR"; exit 1; }
 echo "Directorio actual: $(pwd)"
 
@@ -88,7 +140,7 @@ EOF
 
 chmod +x "$LAUNCHER"
 
-# 4. PATH Handling logic
+# 5. PATH Handling logic
 CURRENT_PATH="$PATH"
 BIN_DIR="$HOME/.local/bin"
 SHELL_RC=""
