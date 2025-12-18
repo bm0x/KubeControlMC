@@ -106,6 +106,9 @@ class MCSMApp(App):
                      status_label.update(f"Túnel: [bold]{full_addr}[/bold] (Copiado)")
                      status_label.styles.background = "green"
                      
+                     # Store that we found an address so generic "Running" doesn't overwrite it
+                     self.tunnel_has_address = True
+                     
                      # Auto-copy to clipboard
                      try:
                          process = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
@@ -117,8 +120,8 @@ class MCSMApp(App):
                  pass
 
         elif "tunnel running" in message.lower() or "tunnels registered" in message.lower():
-            # Only update if not already showing an address
-            if "ply.gg" not in str(status_label.renderable):
+            # Only update if we DON'T have a specific address yet
+            if not getattr(self, "tunnel_has_address", False):
                 status_label.display = True
                 status_label.update("Túnel: ACTIVO (Playit.gg)")
                 status_label.styles.background = "green"
@@ -126,6 +129,7 @@ class MCSMApp(App):
         elif "stopped" in message.lower() or "detenido" in message.lower():
             status_label.display = False
             status_label.update("Túnel: Inactivo")
+            self.tunnel_has_address = False # Reset state
         
         elif "error" in message.lower() or "failed" in message.lower():
              # Errors always go to log
