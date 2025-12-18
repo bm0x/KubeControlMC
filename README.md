@@ -21,7 +21,7 @@ KubeControlMC es la herramienta definitiva para crear y administrar servidores d
 Copia y pega este comando en tu terminal de Linux. El asistente se encargará de todo.
 
 ```bash
-curl -sL https://raw.githubusercontent.com/TU_USUARIO/KubeControlMC/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/bm0x/KubeControlMC/main/install.sh | bash
 ```
 
 > **Nota**: El instalador descargará las dependencias necesarias y creará el comando `kcmc` en tu sistema.
