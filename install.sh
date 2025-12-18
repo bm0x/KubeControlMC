@@ -23,12 +23,16 @@ if command -v apt-get &> /dev/null; then
         echo "  - python3: OK"
     fi
     
-    # Check for python3-pip
-    if ! python3 -m pip --version &> /dev/null; then
-        echo "  - python3-pip: No encontrado"
-        MISSING_DEPS+=("python3-pip")
+    # Check for python3-pip (only if python3 is available)
+    if command -v python3 &> /dev/null; then
+        if ! python3 -m pip --version &> /dev/null; then
+            echo "  - python3-pip: No encontrado"
+            MISSING_DEPS+=("python3-pip")
+        else
+            echo "  - python3-pip: OK"
+        fi
     else
-        echo "  - python3-pip: OK"
+        echo "  - python3-pip: Pendiente (requiere python3)"
     fi
     
     # Check for git
@@ -43,11 +47,17 @@ if command -v apt-get &> /dev/null; then
     if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
         echo -e "\e[33mInstalando dependencias faltantes: ${MISSING_DEPS[*]}\e[0m"
         
-        # Try without sudo first
-        if apt-get update && apt-get install -y "${MISSING_DEPS[@]}" 2>/dev/null; then
-            echo -e "\e[32mDependencias instaladas correctamente.\e[0m"
+        # Check if we need sudo (if not running as root)
+        if [ "$EUID" -eq 0 ]; then
+            # Running as root, no sudo needed
+            if apt-get update && apt-get install -y "${MISSING_DEPS[@]}"; then
+                echo -e "\e[32mDependencias instaladas correctamente.\e[0m"
+            else
+                echo -e "\e[31mError: No se pudieron instalar las dependencias automáticamente.\e[0m"
+                echo "Por favor instala manualmente: ${MISSING_DEPS[*]}"
+            fi
         else
-            # If that fails, try with sudo
+            # Not root, use sudo
             echo "Intentando instalación con privilegios de administrador..."
             if sudo apt-get update && sudo apt-get install -y "${MISSING_DEPS[@]}"; then
                 echo -e "\e[32mDependencias instaladas correctamente.\e[0m"
@@ -85,7 +95,8 @@ else
     if command -v git &> /dev/null; then
         git clone "$REPO_URL" "$INSTALL_DIR"
     else
-        echo "Error: Git no está instalado y no se encontraron archivos locales."
+        echo "Error: Git no está instalado. En sistemas APT, debería haberse instalado automáticamente."
+        echo "Por favor ejecuta manualmente: sudo apt-get install git"
         exit 1
     fi
 fi
