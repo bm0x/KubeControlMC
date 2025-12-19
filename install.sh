@@ -79,12 +79,34 @@ fi
 
 # 3. Setup Directory
 if [ -d "$INSTALL_DIR" ]; then
-    echo "Directorio $INSTALL_DIR ya existe. Eliminando versión anterior..."
-    rm -rf "$INSTALL_DIR"
+    echo "Directorio $INSTALL_DIR ya existe."
+    
+    # PRESERVE SERVER DATA (server_bin)
+    if [ -d "$INSTALL_DIR/server_bin" ]; then
+        echo -e "\e[33m[!] Detectados datos de servidor. Realizando copia de seguridad de server_bin...\e[0m"
+        TEMP_BACKUP="$HOME/mcsm_server_bin_backup_$(date +%s)"
+        mv "$INSTALL_DIR/server_bin" "$TEMP_BACKUP"
+        echo "Copia guardada en: $TEMP_BACKUP"
+        
+        echo "Eliminando instalación anterior..."
+        rm -rf "$INSTALL_DIR"
+        
+        # We will restore this after creating the directory
+        SHOULD_RESTORE="$TEMP_BACKUP"
+    else
+        echo "Eliminando versión anterior..."
+        rm -rf "$INSTALL_DIR"
+    fi
 fi
 
 echo "Instalando en $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR"
+
+if [ ! -z "$SHOULD_RESTORE" ]; then
+    echo "Restaurando datos del servidor..."
+    mv "$SHOULD_RESTORE" "$INSTALL_DIR/server_bin"
+    echo -e "\e[32mDatos restaurados correctamente.\e[0m"
+fi
 
 # Check if we are running locally (installer next to main.py)
 if [ -f "main.py" ]; then
