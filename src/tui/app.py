@@ -14,6 +14,7 @@ from src.core.config_manager import ConfigManager
 from src.core.resource_watcher import ResourceWatcher
 from src.tui.screens.install import InstallScreen
 from src.tui.screens.properties_editor import PropertiesEditorScreen
+from src.tui.screens.tunnel_config import TunnelConfigScreen
 
 from src.core.plugin_manager import PluginManager
 from src.core.tunnel_manager import TunnelManager
@@ -41,6 +42,7 @@ class MCSMApp(App):
         self.resource_watcher = None
         self.player_manager = PlayerManager()
         self.current_jar = None
+        self.current_tunnel_modal = None # Reference to active modal
         self.project_type = None
     def compose(self) -> ComposeResult:
         yield Header()
@@ -136,16 +138,30 @@ class MCSMApp(App):
         """Handle messages specifically from the tunnel manager."""
         clean_msg = message.replace("[TUNNEL]", "").strip()
         
+        # 1. Routing to Modal if open
+        if self.current_tunnel_modal:
+            try:
+                self.current_tunnel_modal.log_write(message)
+            except:
+                self.current_tunnel_modal = None 
+
         tunnel_box = self.query_one("#tunnel-box")
         lbl_java = self.query_one("#tunnel-java")
         lbl_bedrock = self.query_one("#tunnel-bedrock")
         
         if "https://" in message or "claim" in message.lower():
             # Link de Claim
+            if self.current_tunnel_modal:
+                self.current_tunnel_modal.show_claim_url(clean_msg)
+            
             tunnel_box.display = True
             lbl_java.update(clean_msg) 
             lbl_java.styles.background = "magenta"
             lbl_bedrock.update("Esperando configuración...")
+            # Still log to universal if modal logic allows, or just suppress?
+            # User wants "clean TUI". 
+            # If modal is open, we let modal handle display.
+            # But logging to history is fine.
             self.log_write_universal(message)
             
         elif "=>" in message and (("ply.gg" in message) or ("tunnel" in message.lower())):
@@ -688,6 +704,26 @@ class MCSMApp(App):
                 self.query_one("#btn-tunnel").label = "Iniciar Túnel"
             else:
                 self.log_write("[cyan]Iniciando túnel Playit.gg...[/cyan]")
+                
+                # OPEN MODAL FIRST
+                modal = TunnelConfigScreen(self.tunnel_manager)
+                self.current_tunnel_modal = modal
+                
+                def modal_cb(result):
+                    self.current_tunnel_modal = None
+                    if result == "close":
+                         # Stop if user cancelled setup?
+                         # Or just let it run background if they hit Close.
+                         # User requested "Close/Background".
+                         # If they hit Close because they want to cancel:
+                         # We should probably stop it. But maybe they just want to monitor.
+                         # The button says "Cancelar / Cerrar". I'll assume Close = Stop if stuck, but Background = Keep running.
+                         pass
+                    elif result == "background":
+                         self.log_write("[dim]Túnel ejecutándose en segundo plano.[/dim]")
+
+                self.push_screen(modal, modal_cb)
+                
                 asyncio.create_task(self.tunnel_manager.start())
                 self.query_one("#btn-tunnel").variant = "warning"
                 self.query_one("#btn-tunnel").label = "Detener Túnel"
