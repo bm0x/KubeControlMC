@@ -9,11 +9,34 @@ from textual.worker import Worker, WorkerState
 
 from src.core.jar_manager import JarManager
 from src.core.server_controller import ServerController
-# ... imports ...
+from src.core.config_manager import ConfigManager
+from src.core.resource_watcher import ResourceWatcher
+from src.tui.screens.install import InstallScreen
 
-# ... class definition ...
+from src.core.plugin_manager import PluginManager
+from src.core.tunnel_manager import TunnelManager
 
-    # ... compose ...
+class MCSMApp(App):
+    """KubeControlMC - Minecraft Server Manager"""
+    TITLE = "KubeControlMC"
+    CSS_PATH = "styles/app.tcss"
+    
+    def __init__(self):
+        super().__init__()
+        # Use absolute path relative to this script's location
+        self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.server_dir = os.path.join(self.base_dir, "server_bin")
+        
+        self.jar_manager = JarManager(download_dir=self.server_dir)
+        self.plugin_manager = PluginManager(plugins_dir=os.path.join(self.server_dir, "plugins"))
+        self.tunnel_manager = TunnelManager(bin_dir=self.server_dir)
+        self.tunnel_manager.set_callback(self.tunnel_callback_universal)
+        self.tunnel_manager.set_crash_callback(self.on_tunnel_crash)
+        
+        self.server_controller = None
+        self.resource_watcher = None
+        self.current_jar = None
+        self.project_type = None
     def compose(self) -> ComposeResult:
         yield Header()
         yield Container(
