@@ -33,6 +33,8 @@ class MCSMApp(App):
         self.tunnel_manager.set_callback(self.tunnel_callback_universal)
         self.tunnel_manager.set_crash_callback(self.on_tunnel_crash)
         
+        self.tunnel_retry_count = 0
+        
         self.server_controller = None
         self.resource_watcher = None
         self.current_jar = None
@@ -185,19 +187,6 @@ class MCSMApp(App):
     def on_tunnel_crash(self):
         self.call_from_thread(self._handle_crash_logic)
 
-    def _handle_crash_logic(self):
-        self.log_write_universal("[bold red]⚠️  Túnel interrumpido inesperadamente.[/bold red]")
-        self.log_write_universal("[yellow]Reiniciando en 500ms...[/yellow]")
-        
-        tunnel_box = self.query_one("#tunnel-box")
-        lbl_java = self.query_one("#tunnel-java")
-        
-        tunnel_box.display = True
-        lbl_java.update("⚠️ Túnel: Reiniciando...")
-        lbl_java.styles.background = "warning"
-        
-        self.set_timer(0.5, self._restart_tunnel_task)
-
     async def _restart_tunnel_task(self):
          """Async task to actually restart the tunnel."""
          try:
@@ -207,6 +196,26 @@ class MCSMApp(App):
              await self.tunnel_manager.start()
          except Exception as e:
              self.log_write_universal(f"[red]Error reiniciando túnel: {e}[/red]")
+
+    def _handle_crash_logic(self):
+        """UI logic for crash handling (Main Thread)."""
+        self.tunnel_retry_count += 1
+        # Exponential backoff: 1s, 2s, 4s, 8s, 16s... max 60s
+        delay = min(1.0 * (2 ** (self.tunnel_retry_count - 1)), 60)
+        
+        self.log_write_universal(f"[bold red]⚠️  Túnel interrumpido. Reintento #{self.tunnel_retry_count} en {int(delay)}s[/bold red]")
+        
+        tunnel_box = self.query_one("#tunnel-box")
+        lbl_java = self.query_one("#tunnel-java")
+        lbl_bedrock = self.query_one("#tunnel-bedrock")
+        
+        tunnel_box.display = True
+        lbl_java.update(f"⚠️ Reintentando... ({int(delay)}s)")
+        lbl_java.styles.background = "warning"
+        lbl_bedrock.update(f"Intento #{self.tunnel_retry_count}")
+        lbl_bedrock.styles.background = "error"
+        
+        self.set_timer(delay, self._restart_tunnel_task)
 
     def open_folder(self, folder: str):
         """Opens a folder in the system file manager (not code editor)."""
