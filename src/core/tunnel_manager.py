@@ -95,21 +95,79 @@ class TunnelManager:
 
     async def start(self):
         self._intentional_stop = False
-        # ... (rest of start same) ...
+        
         if self.callback:
             self.callback(f"[dim]Verificando agente en: {self.agent_path}[/dim]")
         
         if not os.path.exists(self.agent_path):
-             # ...
-             pass
-        # ...
+            try:
+                self.download_agent()
+            except Exception as e:
+                if self.callback:
+                    self.callback(f"[red]Error descargando agente: {e}[/red]")
+                return
+
+        if self.callback:
+            self.callback("[cyan]Ejecutando Playit.gg con PTY...[/cyan]")
+        
+        try:
+            # Create a pseudo-terminal to capture ALL output (including direct TTY writes)
+            master_fd, slave_fd = pty.openpty()
+            self._master_fd = master_fd
+            
+            # Set TERM to dumb or xterm to avoid complex cursor movements if possible
+            env = os.environ.copy()
+            env["TERM"] = "xterm"
+            
+            self.process = subprocess.Popen(
+                [self.agent_path],
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                close_fds=True,
+                env=env
+            )
+            
+            # Close slave in parent process
+            os.close(slave_fd)
+            
+            if self.callback:
+                self.callback(f"[green]Túnel iniciado con PID: {self.process.pid}[/green]")
+            
+            # Start reader thread
+            self._stop_reading = False
+            self._reader_thread = threading.Thread(target=self._read_pty_output, daemon=True)
+            self._reader_thread.start()
+        
+        except Exception as e:
+            if self.callback:
+                self.callback(f"[red]Error al iniciar túnel: {e}[/red]")
 
     async def stop(self):
         self._intentional_stop = True
         self._stop_reading = True
         
         if self._master_fd is not None:
-            # ...
+            try:
+                os.close(self._master_fd)
+            except:
+                pass
+            self._master_fd = None
+        
+        if self.process:
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+            except Exception:
+                try:
+                    self.process.kill()
+                except:
+                    pass
+            self.process = None
+            if self.callback:
+                self.callback("[yellow]Túnel detenido.[/yellow]")
 
     def download_agent(self):
         if os.path.exists(self.agent_path):
