@@ -42,7 +42,11 @@ class MCSMApp(App):
         yield Container(
             Vertical(
                 Label("Estado del Servidor: DESCONOCIDO", id="status-label"),
-                Label("Túnel: Inactivo", id="tunnel-status"),
+                Vertical(
+                    Label("Java: Inactivo", id="tunnel-java"),
+                    Label("Bedrock: Inactivo", id="tunnel-bedrock"),
+                    id="tunnel-box"
+                ),
                 RichLog(id="console-log", markup=True, highlight=True),
                 Input(placeholder="Escribe un comando...", id="console-input", disabled=True),
                 id="console-area"
@@ -80,71 +84,80 @@ class MCSMApp(App):
     
     def on_tunnel_message(self, message: str) -> None:
         """Handle messages specifically from the tunnel manager."""
-        # Clean up message for display
         clean_msg = message.replace("[TUNNEL]", "").strip()
         
-        # 1. Update Status Bar logic
-        status_label = self.query_one("#tunnel-status")
+        tunnel_box = self.query_one("#tunnel-box")
+        lbl_java = self.query_one("#tunnel-java")
+        lbl_bedrock = self.query_one("#tunnel-bedrock")
         
         if "https://" in message or "claim" in message.lower():
-            # Found a claim URL!
-            status_label.display = True
-            status_label.update(clean_msg) # Rich text will render links
-            status_label.styles.background = "magenta"
-            # Also log clearly to console
+            # Link de Claim
+            tunnel_box.display = True
+            lbl_java.update(clean_msg) 
+            lbl_java.styles.background = "magenta"
+            lbl_bedrock.update("Esperando configuración...")
             self.log_write_universal(message)
             
         elif "=>" in message and (("ply.gg" in message) or ("tunnel" in message.lower())):
-             # EXTRACT ADDRESS: example "she-ryan.gl.at.ply.gg:11188 => 127.0.0.1:11188"
+             # EXTRACT ADDRESS
              try:
-                 # Split by arrow
                  parts = clean_msg.split("=>")
-                 if len(parts) >= 1:
-                     # Get left side (public addr)
-                     full_addr = parts[0].strip()
-                     # If it has extra text at start, try to clean it
-                     if " " in full_addr:
-                         full_addr = full_addr.split(" ")[-1]
+                 if len(parts) >= 2:
+                     public_addr = parts[0].strip()
+                     local_addr = parts[1].strip() # e.g. 127.0.0.1:25565
                      
-                     status_label.display = True
-                     status_label.update(f"Túnel: [bold]{full_addr}[/bold] (Copiado)")
-                     status_label.styles.background = "green"
+                     if " " in public_addr:
+                         public_addr = public_addr.split(" ")[-1]
                      
-                     # Store that we found an address so generic "Running" doesn't overwrite it
-                     self.tunnel_has_address = True
+                     tunnel_box.display = True
                      
-                     # Auto-copy to clipboard
-                     try:
-                         process = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
-                         process.communicate(full_addr.encode())
-                         self.log_write_universal(f"[green]Dirección copiada: {full_addr}[/green]")
-                     except:
-                         pass
+                     # Logic to distinguish Java vs Bedrock by LOCAL port
+                     if ":25565" in local_addr:
+                         lbl_java.update(f"Java: [bold]{public_addr}[/bold] (Copiado)")
+                         lbl_java.styles.background = "green"
+                         # Auto-copy Java IP
+                         try:
+                             process = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
+                             process.communicate(public_addr.encode())
+                             self.log_write_universal(f"[green]IP Java copiada: {public_addr}[/green]")
+                         except:
+                             pass
+                             
+                     elif ":19132" in local_addr:
+                         lbl_bedrock.update(f"Bedrock: [bold]{public_addr}[/bold]")
+                         lbl_bedrock.styles.background = "green"
+                     
+                     else:
+                         # Fallback if port is different or unknown
+                         self.log_write_universal(f"[yellow]Túnel detectado en puerto no estándar: {local_addr}[/yellow]")
+                         if "udp" in message.lower():
+                             lbl_bedrock.update(f"Bedrock/UDP: [bold]{public_addr}[/bold]")
+                             lbl_bedrock.styles.background = "green"
+                         else:
+                             lbl_java.update(f"Java/TCP: [bold]{public_addr}[/bold]")
+                             lbl_java.styles.background = "green"
              except:
                  pass
 
-        elif "tunnel running" in message.lower() or "tunnels registered" in message.lower():
-            # Only update if we DON'T have a specific address yet
-            if not getattr(self, "tunnel_has_address", False):
-                status_label.display = True
-                status_label.update("Túnel: ACTIVO (Playit.gg)")
-                status_label.styles.background = "green"
+        elif "tunnel running" in message.lower():
+            tunnel_box.display = True
+            # Don't overwrite if we already have specific info
+            pass
         
         elif "stopped" in message.lower() or "detenido" in message.lower():
-            status_label.display = False
-            status_label.update("Túnel: Inactivo")
-            self.tunnel_has_address = False # Reset state
+            tunnel_box.display = False
+            lbl_java.update("Java: Inactivo")
+            lbl_bedrock.update("Bedrock: Inactivo")
+            lbl_java.styles.background = "secondary"
+            lbl_bedrock.styles.background = "secondary"
         
         elif "error" in message.lower() or "failed" in message.lower():
-             # Errors always go to log
              self.log_write_universal(message)
         
-        # 2. Avoid spamming the main log with every single heartbeat
-        # Only log important events to the main console
+        # Log filtering
         if "error" in message.lower() or "claim" in message.lower() or "started" in message.lower() or "=>" in message:
-            pass # Already logged above or needs logging
+            pass 
         else:
-             # Debug info ignored from main log to reduce spam
              pass
 
     def log_write_safe(self, message: str) -> None:
@@ -154,20 +167,15 @@ class MCSMApp(App):
     def log_write_universal(self, message: str) -> None:
         """Smart callback that works from both async context and threads."""
         import threading
-        # Check if we're in the main thread (where Textual runs)
         if threading.current_thread() is threading.main_thread():
-            # We're in the main thread, use direct write
             try:
                 self.log_write(message)
             except Exception:
-                # If that fails, try scheduling it
                 self.call_later(lambda: self.log_write(message))
         else:
-            # We're in a different thread, use call_from_thread
             self.call_from_thread(self.log_write, message) 
             
     def tunnel_callback_universal(self, message: str):
-        """Universal callback specifically for tunnel messages."""
         import threading
         if threading.current_thread() is threading.main_thread():
             self.on_tunnel_message(message)
@@ -175,21 +183,19 @@ class MCSMApp(App):
             self.call_from_thread(self.on_tunnel_message, message)
 
     def on_tunnel_crash(self):
-        """Called by TunnelManager when process dies unexpectedly."""
-        # Schedule logic on main thread
         self.call_from_thread(self._handle_crash_logic)
 
     def _handle_crash_logic(self):
-        """UI logic for crash handling (Main Thread)."""
         self.log_write_universal("[bold red]⚠️  Túnel interrumpido inesperadamente.[/bold red]")
         self.log_write_universal("[yellow]Reiniciando en 500ms...[/yellow]")
         
-        status_label = self.query_one("#tunnel-status")
-        status_label.display = True
-        status_label.update("⚠️ Túnel: Reiniciando...")
-        status_label.styles.background = "warning"
+        tunnel_box = self.query_one("#tunnel-box")
+        lbl_java = self.query_one("#tunnel-java")
         
-        # Schedule restart after 500ms
+        tunnel_box.display = True
+        lbl_java.update("⚠️ Túnel: Reiniciando...")
+        lbl_java.styles.background = "warning"
+        
         self.set_timer(0.5, self._restart_tunnel_task)
 
     async def _restart_tunnel_task(self):

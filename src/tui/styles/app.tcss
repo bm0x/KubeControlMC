@@ -19,13 +19,26 @@ Screen {
     margin-bottom: 0;
 }
 
-#tunnel-status {
+#tunnel-box {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+    display: none;
+}
+
+#tunnel-java {
     text-align: center;
     background: $secondary;
     color: $text;
     width: 100%;
-    margin-bottom: 1;
-    display: none; /* Hidden by default */
+}
+
+#tunnel-bedrock {
+    text-align: center;
+    background: $secondary;
+    color: $text;
+    width: 100%;
+    border-top: solid $background 1; /* Separator */
 }
 
 #console-area {
