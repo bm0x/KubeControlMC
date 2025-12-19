@@ -2,7 +2,10 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, RichLog, Label, Static
 from textual.containers import Vertical, Horizontal, Container
 from textual.app import ComposeResult
-import pyperclip
+try:
+    import pyperclip
+except ImportError:
+    pyperclip = None
 
 class TunnelConfigScreen(ModalScreen):
     CSS = """

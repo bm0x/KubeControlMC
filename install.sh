@@ -151,7 +151,9 @@ if [ -z "$REQ_FILE" ] || [ ! -f "$REQ_FILE" ]; then
 textual>=0.40.0
 requests
 aiohttp
+aiohttp
 psutil
+pyperclip
 REQS
     REQ_FILE="$INSTALL_DIR/requirements.txt"
 fi
