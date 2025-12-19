@@ -112,6 +112,7 @@ class MCSMApp(App):
                         Button("⚡ Optimizar", id="btn-optimize", variant="warning", classes="sidebar-btn"),
                         Button("Geyser/Floodgate", id="btn-geyser", variant="default", classes="sidebar-btn"),
                         Button("Iniciar Túnel", id="btn-tunnel", variant="default", classes="sidebar-btn"),
+                        Button("♻️ Reinstalar Túnel", id="btn-reset-tunnel", variant="error", classes="sidebar-btn"),
                         
                         Label("[dim]Archivos[/dim]", classes="sidebar-divider"),
                         Button("📂 Carpeta Server", id="btn-open-root", variant="default", classes="sidebar-btn"),
@@ -493,6 +494,8 @@ class MCSMApp(App):
             self.install_geyser()
         elif btn_id == "btn-tunnel":
             self.toggle_tunnel()
+        elif btn_id == "btn-reset-tunnel":
+            self.reset_tunnel_config()
         elif btn_id == "btn-optimize":
             self.optimize_server_config()
         elif btn_id == "btn-open-root": # Added button handler
@@ -690,6 +693,18 @@ class MCSMApp(App):
                 self.query_one("#btn-tunnel").label = "Detener Túnel"
         except Exception as e:
             self.log_write(f"[red]Error en toggle_tunnel: {e}[/red]")
+
+    def reset_tunnel_config(self):
+        self.log_write("[bold orange]Reinstalando Túnel Playit.gg...[/bold orange]")
+        # Ensure stopped
+        if self.tunnel_manager.process:
+             asyncio.create_task(self.tunnel_manager.stop())
+             self.query_one("#btn-tunnel").variant = "default"
+             self.query_one("#btn-tunnel").label = "Iniciar Túnel"
+        
+        # Reset (Files + Binary)
+        self.tunnel_manager.reset_config()
+        self.log_write("[green]¡Túnel eliminado! Al iniciarlo de nuevo se descargará la última versión.[/green]")
 
 
     async def start_server(self):

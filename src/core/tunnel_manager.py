@@ -318,3 +318,28 @@ class TunnelManager:
             self.process = None
             if self.callback:
                 self.callback("[yellow]Túnel detenido.[/yellow]")
+
+    def reset_config(self):
+        """Performs a full reset: Deletes config AND the binary to force update."""
+        files_to_remove = [
+            os.path.join(self.bin_dir, "playit.toml"),
+            "playit.toml",
+            self.agent_path  # Delete the binary itself
+        ]
+        
+        deleted_any = False
+        for f in files_to_remove:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                    deleted_any = True
+                except:
+                    pass
+            
+        if self.callback:
+            if deleted_any:
+                self.callback("[green]Agente y configuración eliminados. Se descargará la última versión.[/green]")
+            else:
+                self.callback("[dim]Nada que limpiar (Agente/Config no encontrados).[/dim]")
+            
+        return deleted_any
