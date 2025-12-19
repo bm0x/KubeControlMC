@@ -102,11 +102,7 @@ fi
 echo "Instalando en $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR"
 
-if [ ! -z "$SHOULD_RESTORE" ]; then
-    echo "Restaurando datos del servidor..."
-    mv "$SHOULD_RESTORE" "$INSTALL_DIR/server_bin"
-    echo -e "\e[32mDatos restaurados correctamente.\e[0m"
-fi
+
 
 # Check if we are running locally (installer next to main.py)
 if [ -f "main.py" ]; then
@@ -121,6 +117,16 @@ else
         echo "Por favor ejecuta manualmente: sudo apt-get install git"
         exit 1
     fi
+fi
+
+if [ ! -z "$SHOULD_RESTORE" ]; then
+    echo "Restaurando datos del servidor..."
+    # Ensure target is clean before restoring backup
+    if [ -d "$INSTALL_DIR/server_bin" ]; then
+        rm -rf "$INSTALL_DIR/server_bin"
+    fi
+    mv "$SHOULD_RESTORE" "$INSTALL_DIR/server_bin"
+    echo -e "\e[32mDatos restaurados correctamente.\e[0m"
 fi
 
 # 4. Setup Virtual Environment or Libs
