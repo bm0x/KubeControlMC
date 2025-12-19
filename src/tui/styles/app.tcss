@@ -38,7 +38,7 @@ Screen {
     background: $secondary;
     color: $text;
     width: 100%;
-    border-top: solid $background 1; /* Separator */
+    border-top: solid $background; /* Separator */
 }
 
 #console-area {
