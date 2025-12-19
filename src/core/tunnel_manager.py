@@ -23,13 +23,93 @@ class TunnelManager:
         self._reader_thread = None
         self._stop_reading = False
         self._master_fd = None
+        self._on_crash = None
+        self._intentional_stop = False
 
     def set_callback(self, callback):
         self.callback = callback
+        
+    def set_crash_callback(self, callback):
+        self._on_crash = callback
 
     def _strip_ansi(self, text: str) -> str:
         """Remove ANSI escape codes from text."""
         return self.ANSI_ESCAPE.sub('', text)
+
+    # ... (download_agent remains same) ...
+
+    def _read_pty_output(self):
+        """Thread that reads output from the PTY master."""
+        buffer = ""
+        try:
+            while not self._stop_reading and self._master_fd is not None:
+                # ... (loop content same) ...
+                try:
+                    ready, _, _ = select.select([self._master_fd], [], [], 0.1)
+                    if not ready:
+                        # ...
+                        if buffer and ("https://" in buffer or "claim" in buffer.lower()):
+                             buffer += "\n"
+                        else:
+                            continue
+                    
+                    if ready:
+                        data = os.read(self._master_fd, 1024)
+                        if not data:
+                            break
+                        
+                        decoded = data.decode('utf-8', errors='replace')
+                        decoded = decoded.replace('\r\n', '\n').replace('\r', '\n')
+                        buffer += decoded
+                    
+                    # ... (line processing same) ...
+                    # Process complete lines
+                    while '\n' in buffer:
+                        line, buffer = buffer.split('\n', 1)
+                        line = self._strip_ansi(line).strip()
+                        
+                        if not line:
+                            continue
+                        
+                        safe_line = line.replace("[", "\\[").replace("]", "\\]")
+                        
+                        if self.callback:
+                            if "https://" in line or "claim" in line.lower():
+                                self.callback(f"[bold magenta][TUNNEL] {safe_line}[/]")
+                            elif "error" in line.lower() or "failed" in line.lower():
+                                self.callback(f"[red][TUNNEL] {safe_line}[/red]")
+                            elif "started" in line.lower() or "ready" in line.lower() or "running" in line.lower():
+                                self.callback(f"[green][TUNNEL] {safe_line}[/green]")
+                            else:
+                                self.callback(f"[dim][TUNNEL] {safe_line}[/dim]")
+                except OSError:
+                    # PTY closed
+                    break
+                    
+        except Exception as e:
+            if self.callback and not self._stop_reading:
+                self.callback(f"[red][TUNNEL ERROR] {e}[/red]")
+        finally:
+            if not self._intentional_stop and self._on_crash and not self._stop_reading:
+                self._on_crash()
+
+    async def start(self):
+        self._intentional_stop = False
+        # ... (rest of start same) ...
+        if self.callback:
+            self.callback(f"[dim]Verificando agente en: {self.agent_path}[/dim]")
+        
+        if not os.path.exists(self.agent_path):
+             # ...
+             pass
+        # ...
+
+    async def stop(self):
+        self._intentional_stop = True
+        self._stop_reading = True
+        
+        if self._master_fd is not None:
+            # ...
 
     def download_agent(self):
         if os.path.exists(self.agent_path):

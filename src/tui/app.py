@@ -32,6 +32,7 @@ class MCSMApp(App):
         self.plugin_manager = PluginManager(plugins_dir=os.path.join(self.server_dir, "plugins"))
         self.tunnel_manager = TunnelManager(bin_dir=self.server_dir)
         self.tunnel_manager.set_callback(self.tunnel_callback_universal)
+        self.tunnel_manager.set_crash_callback(self.on_tunnel_crash)
         
         self.server_controller = None
         self.resource_watcher = None
@@ -169,6 +170,34 @@ class MCSMApp(App):
             self.on_tunnel_message(message)
         else:
             self.call_from_thread(self.on_tunnel_message, message)
+
+    def on_tunnel_crash(self):
+        """Called by TunnelManager when process dies unexpectedly."""
+        # Schedule logic on main thread
+        self.call_from_thread(self._handle_crash_logic)
+
+    def _handle_crash_logic(self):
+        """UI logic for crash handling (Main Thread)."""
+        self.log_write_universal("[bold red]⚠️  Túnel interrumpido inesperadamente.[/bold red]")
+        self.log_write_universal("[yellow]Reiniciando en 500ms...[/yellow]")
+        
+        status_label = self.query_one("#tunnel-status")
+        status_label.display = True
+        status_label.update("⚠️ Túnel: Reiniciando...")
+        status_label.styles.background = "warning"
+        
+        # Schedule restart after 500ms
+        self.set_timer(0.5, self._restart_tunnel_task)
+
+    async def _restart_tunnel_task(self):
+         """Async task to actually restart the tunnel."""
+         try:
+             # Ensure clean stop first
+             await self.tunnel_manager.stop()
+             # Start again
+             await self.tunnel_manager.start()
+         except Exception as e:
+             self.log_write_universal(f"[red]Error reiniciando túnel: {e}[/red]")
 
     def open_folder(self, folder: str):
         """Opens a folder in the system file manager (not code editor)."""
