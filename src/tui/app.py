@@ -733,6 +733,23 @@ class MCSMApp(App):
         
         if self.server_controller.process:
             self.resource_watcher.start(self.server_controller.process.pid)
+            
+        # Start Sync Timer (Every 10s)
+        self.set_interval(10.0, self.sync_player_list)
+
+    async def sync_player_list(self):
+        """Sends /list to server to keep player list in sync."""
+        if self.server_controller and self.server_controller.process:
+            # Check if process is still running
+            if self.server_controller.process.returncode is None:
+                try:
+                    # Write "list" command silently (don't log to console to avoid clutter)
+                    # OR log it as debug. Standard "list" output is useful anyway.
+                    # We use write directly.
+                    # Note: We must ensure not to spam if server is overloaded.
+                    await self.server_controller.write("list")
+                except:
+                    pass
 
     async def stop_server(self):
         if self.server_controller:

@@ -138,6 +138,7 @@ TabPane {
     border-left: solid $accent;
     padding-left: 1;
     padding-right: 1;
+    overflow-y: auto;
 }
 
 .sidebar-header {
