@@ -3,7 +3,7 @@ import os
 import sys
 import subprocess
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Button, Label, Input, RichLog, Select
+from textual.widgets import Header, Footer, Button, Label, Input, RichLog, Select, TabbedContent, TabPane
 from textual.containers import Container, Vertical, Horizontal
 from textual.worker import Worker, WorkerState
 
@@ -41,45 +41,71 @@ class MCSMApp(App):
         self.project_type = None
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Container(
-            Vertical(
-                Label("Estado del Servidor: DESCONOCIDO", id="status-label"),
-                Vertical(
-                    Label("Java: Inactivo", id="tunnel-java"),
-                    Label("Bedrock: Inactivo", id="tunnel-bedrock"),
-                    id="tunnel-box"
-                ),
-                RichLog(id="console-log", markup=True, highlight=True),
-                Input(placeholder="Escribe un comando...", id="console-input", disabled=True),
-                id="console-area"
-            ),
-            # Extra Tools
-            Horizontal(
-                Button("Instalar Geyser/Floodgate", id="btn-geyser", variant="default"),
-                Button("Iniciar Túnel (Playit)", id="btn-tunnel", variant="default"),
-                Button("Abrir Carpeta Server", id="btn-open-root", variant="default"),
-                Button("Abrir Plugins", id="btn-open-plugins", variant="default"),
-                Button("Copiar Logs", id="btn-copy-logs", variant="default"),
-                Button("🔄 Actualizar App", id="btn-update-app", variant="primary"),
-                id="tools-area",
-                classes="tools-box"
-            ),
-            Horizontal(
-                Select.from_values(
-                    ["2G", "4G", "6G", "8G", "12G", "16G", "24G", "32G"],
-                    value="4G",
-                    id="ram-select",
-                    allow_blank=False
-                ),
-                Button("Instalar / Actualizar", id="btn-install", variant="primary"),
-                Button("Iniciar", id="btn-start", variant="success", disabled=True),
-                Button("Detener", id="btn-stop", variant="error", disabled=True),
-                Button("Mantenimiento / Reinicio", id="btn-restart", variant="warning", disabled=True),
-                Button("Salir App", id="btn-exit", variant="error"),
-                id="controls-area"
-            ),
-            id="main-container"
-        )
+        
+        with TabbedContent(initial="tab-dashboard"):
+            
+            # --- TAB 1: DASHBOARD ---
+            with TabPane("Dashboard", id="tab-dashboard"):
+                yield Container(
+                    Vertical(
+                        Label("Estado del Servidor: DESCONOCIDO", id="status-label"),
+                        # Tunnel Status (Dual Box)
+                        Vertical(
+                            Label("Java: Inactivo", id="tunnel-java"),
+                            Label("Bedrock: Inactivo", id="tunnel-bedrock"),
+                            id="tunnel-box"
+                        ),
+                        classes="dashboard-status-area"
+                    ),
+                    # Controls
+                    Horizontal(
+                        Select.from_values(
+                            ["2G", "4G", "6G", "8G", "12G", "16G", "24G", "32G"],
+                            value="4G",
+                            id="ram-select",
+                            allow_blank=False
+                        ),
+                        Button("Iniciar", id="btn-start", variant="success", disabled=True),
+                        Button("Detener", id="btn-stop", variant="error", disabled=True),
+                        Button("Reiniciar/Mant.", id="btn-restart", variant="warning", disabled=True),
+                        id="controls-area"
+                    ),
+                    id="dashboard-container"
+                )
+
+            # --- TAB 2: CONSOLA SERVIDOR ---
+            with TabPane("Consola Server", id="tab-console"):
+                yield Vertical(
+                    RichLog(id="server-log", markup=True, highlight=True, auto_scroll=True),
+                    Input(placeholder="Comando de servidor (ej: /op, /stop)...", id="console-input", disabled=True),
+                    id="server-console-area"
+                )
+
+            # --- TAB 3: SISTEMA Y HERRAMIENTAS ---
+            with TabPane("Sistema", id="tab-system"):
+                yield Vertical(
+                    Label("[bold]Logs del Sistema & Túnel[/bold]"),
+                    RichLog(id="system-log", markup=True, highlight=True, auto_scroll=True),
+                    
+                    Label("[bold]Herramientas Extra[/bold]", classes="header-tiny"),
+                    Horizontal(
+                        Button("Instalar / Actualizar Server", id="btn-install", variant="primary"),
+                        Button("⚡ Optimizar", id="btn-optimize", variant="warning"),
+                        Button("Geyser/Floodgate", id="btn-geyser", variant="default"),
+                        Button("Iniciar Túnel", id="btn-tunnel", variant="default"),
+                        id="tools-row-1"
+                    ),
+                    Horizontal(
+                        Button("Abrir Carpeta Server", id="btn-open-root", variant="default"),
+                        Button("Abrir Plugins", id="btn-open-plugins", variant="default"),
+                        Button("Copiar Logs Sistema", id="btn-copy-logs", variant="default"),
+                        Button("🔄 Actualizar App", id="btn-update-app", variant="warning"),
+                        Button("Salir", id="btn-exit", variant="error"),
+                        id="tools-row-2"
+                    ),
+                    id="system-area"
+                )
+        
         yield Footer()
 
     # ... existing methods ...
@@ -272,7 +298,8 @@ class MCSMApp(App):
     def copy_logs_to_clipboard(self):
         """Copy all log content to system clipboard."""
         try:
-            log_widget = self.query_one("#console-log", RichLog)
+            # Determine which log is more relevant or copy server log by default
+            log_widget = self.query_one("#server-log", RichLog)
             # Extract plain text from RichLog
             # RichLog.lines contains Strip objects with Segment children
             lines = []
@@ -311,12 +338,18 @@ class MCSMApp(App):
                     self.log_write(f"[yellow]Logs guardados en:[/yellow] {temp_file}")
                     return
             
-            self.log_write("[green]Logs copiados al portapapeles.[/green]")
+            self.log_write("[green]Logs del servidor copiados al portapapeles.[/green]")
         except Exception as e:
             self.log_write(f"[red]Error copiando logs: {e}[/red]")
 
     def update_app(self):
         """Update the application from GitHub and restart."""
+        # Check active process - SAFE UPDATE
+        if self.server_controller and self.server_controller.process and self.server_controller.process.returncode is None:
+            self.log_write("[bold red]⛔ IMPOSIBLE ACTUALIZAR: SERVIDOR ACTIVO[/bold red]")
+            self.log_write("[yellow]Por favor, detén el servidor antes de actualizar para garantizar la seguridad de tus datos.[/yellow]")
+            return
+
         self.log_write("[cyan]🔄 Buscando actualizaciones...[/cyan]")
         
         def _do_update():
@@ -394,6 +427,19 @@ class MCSMApp(App):
         self.log_write("[bold green]¡Servidor Reiniciado! La whitelist sigue activa por seguridad.[/bold green]")
         self.log_write("[dim]Escribe 'whitelist off' cuando estés listo.[/dim]")
 
+    def optimize_server_config(self):
+        self.log_write("[cyan]Aplicando optimizaciones agresivas (Low-End PC)...[/cyan]")
+        try:
+            changes = ConfigManager.apply_aggressive_optimization(self.server_dir)
+            if changes:
+                for change in changes:
+                    self.log_write(f"[green]✓ {change}[/green]")
+                self.log_write("[bold yellow]Reinicia el servidor para aplicar cambios.[/bold yellow]")
+            else:
+                self.log_write("[dim]No se aplicaron cambios o archivos no encontrados.[/dim]")
+        except Exception as e:
+            self.log_write(f"[red]Error optimizando: {e}[/red]")
+
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
         if btn_id == "btn-install":
@@ -408,6 +454,8 @@ class MCSMApp(App):
             self.install_geyser()
         elif btn_id == "btn-tunnel":
             self.toggle_tunnel()
+        elif btn_id == "btn-optimize":
+            self.optimize_server_config()
         elif btn_id == "btn-open-root": # Added button handler
             self.open_folder(self.server_dir)
         elif btn_id == "btn-open-plugins": # Added button handler
@@ -420,9 +468,20 @@ class MCSMApp(App):
             self.exit()
 
     def log_write(self, message: str) -> None:
-        """Write to the console log widget with Rich markup support."""
-        log = self.query_one("#console-log", RichLog)
-        log.write(message)
+        """Write to the SYSTEM log widget."""
+        try:
+            log = self.query_one("#system-log", RichLog)
+            log.write(message)
+        except:
+            pass
+            
+    def log_server(self, message: str) -> None:
+        """Write to the SERVER CONSOLE log widget."""
+        try:
+            log = self.query_one("#server-log", RichLog)
+            log.write(message)
+        except:
+            pass
 
     def on_mount(self) -> None:
         self.log_write("[bold green]Bienvenido a KubeControlMC[/]")
@@ -443,8 +502,8 @@ class MCSMApp(App):
             self.query_one("#status-label").update("Estado: LISTO PARA INICIAR")
         else:
             self.log_write("[yellow]No se detectó ningún servidor instalado.[/yellow]")
-            self.open_install_screen()
-
+            # self.open_install_screen() # Optional: Don't force open
+            
     def open_install_screen(self):
         """Opens the install modal. Guards against being called multiple times."""
         # Prevent opening multiple times
@@ -571,13 +630,18 @@ class MCSMApp(App):
 
         # Prepare arguments
         java_args = [f"-Xms{ram_val}", f"-Xmx{ram_val}"]
-        self.log_write(f"[dim]Iniciando con memoria: {ram_val}[/dim]")
-
-        self.server_controller = ServerController(self.current_jar, java_args=java_args)
-        self.server_controller.set_callback(self.log_write)
+        self.log_write(f"[dim]Iniciando servidor con memoria: {ram_val}[/dim]") # System log
         
-        # Resource Watcher
+        # Initialize Controller
+        self.server_controller = ServerController(self.current_jar, java_args=java_args)
+        # Redirect Server Output to Console Tab
+        self.server_controller.set_callback(self.log_server)
+        
+        # Resource Watcher - Write stats to System Log
         self.resource_watcher = ResourceWatcher(self.log_write)
+        
+        # Switch to Console Tab automatically? Optional
+        # self.query_one(TabbedContent).active = "tab-console" 
         
         await self.server_controller.start()
         
@@ -604,6 +668,6 @@ class MCSMApp(App):
         if self.server_controller:
             cmd = event.value
             self.query_one("#console-input").value = ""
-            self.log_write(f"[dim]> {cmd}[/dim]")
+            self.log_server(f"[dim]> {cmd}[/dim]")
             await self.server_controller.write(cmd)
 

@@ -12,7 +12,9 @@ KubeControlMC es la herramienta definitiva para crear y administrar servidores d
 *   **🤝 Juega con Todos**: Invita a tus amigos de consola (PlayStation, Xbox, Switch) y celular gracias a la integración automática de **Geyser**.
 *   **🌍 Sin Puertos Probemáticos**: Olvídate de abrir puertos en tu router. Crea un enlace público seguro en segundos.
 *   **🧠 Inteligencia Artificial (IA) de Recursos**: Un guardián silencioso optimiza la RAM de tu servidor en tiempo real para eliminar el lag.
-*   **🛡️ Modo Mantenimiento Seguro**: Reinicia y guarda tu mundo sin riesgo de corrupción ni pérdida de objetos.
+*   **💻 Dashboard Profesional 2.0**: Panel de control organizado en pestañas (Dashboard, Consola, Sistema) para tener todo bajo control.
+*   **⚡ Optimizador de FPS**: ¿Tu PC es modesta? Pulsa "Optimizar" para aplicar configuraciones agresivas de rendimiento automáticamente.
+*   **🛡️ Modo Mantenimiento Seguro**: Reinicia y actualiza tu servidor sin riesgo de corrupción ni pérdida de objetos (con bloqueo de protección).
 
 ---
 

@@ -8,7 +8,28 @@ Screen {
     height: 90%;
     border: solid $accent;
     background: $surface;
+    padding: 0; /* Remove padding to let tabs touch edges */
+}
+
+TabbedContent {
+    height: 1fr;
+}
+
+TabPane {
     padding: 1;
+}
+
+/* --- DASHBOARD TAB --- */
+#dashboard-container {
+    align: center middle;
+    height: 1fr;
+    padding: 2;
+}
+
+.dashboard-status-area {
+    margin-bottom: 2;
+    width: 60%;
+    height: auto;
 }
 
 #status-label {
@@ -17,6 +38,8 @@ Screen {
     color: $text;
     width: 100%;
     margin-bottom: 0;
+    text-style: bold;
+    padding: 1;
 }
 
 #tunnel-box {
@@ -31,6 +54,7 @@ Screen {
     background: $secondary;
     color: $text;
     width: 100%;
+    padding: 1;
 }
 
 #tunnel-bedrock {
@@ -38,26 +62,63 @@ Screen {
     background: $secondary;
     color: $text;
     width: 100%;
-    border-top: solid $background; /* Separator */
-}
-
-#console-area {
-    height: 1fr;
-    border: solid $secondary;
-    margin-bottom: 1;
-}
-
-#console-log {
-    height: 1fr;
-    background: $boost;
-    color: $text;
-    overflow-y: scroll;
+    border-top: solid $background;
+    padding: 1;
 }
 
 #controls-area {
     height: auto;
-    align: center bottom;
+    align: center middle;
+    margin-top: 1;
 }
+
+#ram-select {
+    width: 16;
+    margin-right: 1;
+}
+
+/* --- CONSOLE TAB --- */
+#server-console-area {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+#server-log {
+    height: 1fr;
+    background: $black; /* Darker for console */
+    color: $text;
+    overflow-y: scroll;
+}
+
+/* --- SYSTEM TAB --- */
+#system-area {
+    height: 1fr;
+}
+
+#system-log {
+    height: 1fr;
+    background: $surface-lighten-1;
+    color: $text;
+    border: solid $secondary;
+    margin-bottom: 1;
+}
+
+.header-tiny {
+    margin-top: 1;
+    margin-bottom: 1;
+    color: $accent;
+}
+
+#tools-row-1, #tools-row-2 {
+    height: auto;
+    margin-bottom: 1;
+    align: center middle;
+}
+
+Button {
+    margin-right: 1;
+}
+
 
 #tools-area {
     height: auto;

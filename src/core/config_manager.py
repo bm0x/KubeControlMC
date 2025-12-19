@@ -45,3 +45,66 @@ class ConfigManager:
                     if line.strip().startswith(f"{key}="):
                         return line.split("=", 1)[1].strip()
         return None
+        
+    @staticmethod
+    def apply_aggressive_optimization(server_dir: str) -> list[str]:
+        """
+        Applies aggressive optimization settings to server configuration files.
+        Returns a list of changes made.
+        """
+        changes = []
+        
+        # 1. server.properties
+        try:
+            ConfigManager.set_property(server_dir, "view-distance", "4")
+            ConfigManager.set_property(server_dir, "simulation-distance", "3")
+            ConfigManager.set_property(server_dir, "network-compression-threshold", "256")
+            ConfigManager.set_property(server_dir, "sync-chunk-writes", "false")
+            changes.append("server.properties: view-distance=4, sim-distance=3, sync-chunk=false")
+        except Exception as e:
+            changes.append(f"Error optimizing server.properties: {e}")
+
+        # 2. bukkit.yml (Simple heuristic replacement)
+        bukkit_path = os.path.join(server_dir, "bukkit.yml")
+        if os.path.exists(bukkit_path):
+            try:
+                # We do a naive replacement for common bottlenecks
+                with open(bukkit_path, 'r') as f:
+                    content = f.read()
+                
+                new_content = content
+                # Reduce spawn limits
+                if "monsters: 70" in new_content:
+                    new_content = new_content.replace("monsters: 70", "monsters: 30")
+                    changes.append("bukkit.yml: monsters spawn limit 70 -> 30")
+                if "animals: 10" in new_content:
+                    new_content = new_content.replace("animals: 10", "animals: 5")
+                    changes.append("bukkit.yml: animals spawn limit 10 -> 5")
+                
+                if new_content != content:
+                    with open(bukkit_path, 'w') as f:
+                        f.write(new_content)
+            except Exception as e:
+                changes.append(f"Error optimizing bukkit.yml: {e}")
+
+        # 3. spigot.yml
+        spigot_path = os.path.join(server_dir, "spigot.yml")
+        if os.path.exists(spigot_path):
+            try:
+                with open(spigot_path, 'r') as f:
+                    content = f.read()
+                new_content = content
+                if "merge-radius:" in new_content:
+                    # Generic hint, hard to regex replace without structure, 
+                    # but we can try common defaults
+                    new_content = new_content.replace("item: 2.5", "item: 4.0").replace("exp: 3.0", "exp: 6.0")
+                    # Assuming default structure exists
+                
+                if new_content != content:
+                    with open(spigot_path, 'w') as f:
+                        f.write(new_content)
+                    changes.append("spigot.yml: Increased merge-radius for items/exp")
+            except Exception:
+                pass
+
+        return changes
