@@ -21,15 +21,22 @@ TabPane {
 
 /* --- DASHBOARD TAB --- */
 #dashboard-container {
-    align: center middle;
     height: 1fr;
-    padding: 2;
+    layout: horizontal;
+    padding: 1;
 }
 
-.dashboard-status-area {
-    margin-bottom: 2;
-    width: 60%;
-    height: auto;
+#dashboard-left {
+    width: 50%;
+    height: 100%;
+    padding-right: 2;
+    border-right: solid $secondary;
+}
+
+#dashboard-right {
+    width: 50%;
+    height: 100%;
+    padding-left: 2;
 }
 
 #status-label {
@@ -45,7 +52,7 @@ TabPane {
 #tunnel-box {
     width: 100%;
     height: auto;
-    margin-bottom: 1;
+    margin-bottom: 2;
     display: none;
 }
 
@@ -66,15 +73,30 @@ TabPane {
     padding: 1;
 }
 
-#controls-area {
+.section-title {
+    color: $accent;
+    margin-bottom: 1;
+    text-style: bold;
+}
+
+#ram-area {
     height: auto;
-    align: center middle;
-    margin-top: 1;
+    margin-bottom: 1;
 }
 
 #ram-select {
-    width: 16;
-    margin-right: 1;
+    width: 100%;
+}
+
+.dash-btn {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#player-list {
+    height: 1fr;
+    border: solid $secondary;
+    background: $surface-lighten-1;
 }
 
 /* --- CONSOLE TAB --- */
@@ -93,6 +115,12 @@ TabPane {
 /* --- SYSTEM TAB --- */
 #system-area {
     height: 1fr;
+    layout: horizontal;
+}
+
+#system-left-panel {
+    width: 1fr;
+    height: 100%;
 }
 
 #system-log {
@@ -100,33 +128,40 @@ TabPane {
     background: $surface-lighten-1;
     color: $text;
     border: solid $secondary;
-    margin-bottom: 1;
 }
 
-.header-tiny {
-    margin-top: 1;
-    margin-bottom: 1;
+#system-sidebar {
+    width: 32;
+    height: 100%;
+    margin-left: 1;
+    background: $surface;
+    border-left: solid $accent;
+    padding-left: 1;
+    padding-right: 1;
+}
+
+.sidebar-header {
+    text-align: center;
     color: $accent;
-}
-
-#tools-row-1, #tools-row-2 {
-    height: auto;
     margin-bottom: 1;
-    align: center middle;
+    width: 100%;
+}
+
+.sidebar-divider {
+    text-align: center;
+    color: $text-muted;
+    margin-top: 1;
+    margin-bottom: 0;
+    width: 100%;
+}
+
+.sidebar-btn {
+    width: 100%;
+    margin-bottom: 1;
+    margin-right: 0;
 }
 
 Button {
-    margin-right: 1;
-}
-
-
-#tools-area {
-    height: auto;
-    align: center bottom;
-    padding-bottom: 1;
-}
-
-Button {
-    margin: 0 1;
+    margin: 0; /* Reset global button margin if it interferes */
 }
 

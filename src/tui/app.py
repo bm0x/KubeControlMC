@@ -3,15 +3,17 @@ import os
 import sys
 import subprocess
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Button, Label, Input, RichLog, Select, TabbedContent, TabPane
+from textual.widgets import Header, Footer, Button, Label, Input, RichLog, Select, TabbedContent, TabPane, DataTable
 from textual.containers import Container, Vertical, Horizontal
 from textual.worker import Worker, WorkerState
 
 from src.core.jar_manager import JarManager
 from src.core.server_controller import ServerController
+from src.core.player_manager import PlayerManager
 from src.core.config_manager import ConfigManager
 from src.core.resource_watcher import ResourceWatcher
 from src.tui.screens.install import InstallScreen
+from src.tui.screens.properties_editor import PropertiesEditorScreen
 
 from src.core.plugin_manager import PluginManager
 from src.core.tunnel_manager import TunnelManager
@@ -37,6 +39,7 @@ class MCSMApp(App):
         
         self.server_controller = None
         self.resource_watcher = None
+        self.player_manager = PlayerManager()
         self.current_jar = None
         self.project_type = None
     def compose(self) -> ComposeResult:
@@ -46,7 +49,8 @@ class MCSMApp(App):
             
             # --- TAB 1: DASHBOARD ---
             with TabPane("Dashboard", id="tab-dashboard"):
-                yield Container(
+                yield Horizontal(
+                    # Left: Status and Controls
                     Vertical(
                         Label("Estado del Servidor: DESCONOCIDO", id="status-label"),
                         # Tunnel Status (Dual Box)
@@ -55,20 +59,30 @@ class MCSMApp(App):
                             Label("Bedrock: Inactivo", id="tunnel-bedrock"),
                             id="tunnel-box"
                         ),
-                        classes="dashboard-status-area"
-                    ),
-                    # Controls
-                    Horizontal(
-                        Select.from_values(
-                            ["2G", "4G", "6G", "8G", "12G", "16G", "24G", "32G"],
-                            value="4G",
-                            id="ram-select",
-                            allow_blank=False
+                        
+                        # Controls
+                        Label("Panel de Control", classes="section-title"),
+                        Horizontal(
+                             Select.from_values(
+                                ["2G", "4G", "6G", "8G", "12G", "16G", "24G", "32G"],
+                                value="4G",
+                                id="ram-select",
+                                allow_blank=False
+                            ),
+                             id="ram-area"
                         ),
-                        Button("Iniciar", id="btn-start", variant="success", disabled=True),
-                        Button("Detener", id="btn-stop", variant="error", disabled=True),
-                        Button("Reiniciar/Mant.", id="btn-restart", variant="warning", disabled=True),
-                        id="controls-area"
+                        Button("▶ Iniciar", id="btn-start", variant="success", disabled=True, classes="dash-btn"),
+                        Button("⏹ Detener", id="btn-stop", variant="error", disabled=True, classes="dash-btn"),
+                        Button("🔄 Reiniciar/Mant.", id="btn-restart", variant="warning", disabled=True, classes="dash-btn"),
+                        
+                        id="dashboard-left"
+                    ),
+                    
+                    # Right: Player List
+                    Vertical(
+                        Label("[bold]Jugadores en Línea[/bold]", id="players-title"),
+                        DataTable(id="player-list"),
+                        id="dashboard-right"
                     ),
                     id="dashboard-container"
                 )
@@ -83,25 +97,32 @@ class MCSMApp(App):
 
             # --- TAB 3: SISTEMA Y HERRAMIENTAS ---
             with TabPane("Sistema", id="tab-system"):
-                yield Vertical(
-                    Label("[bold]Logs del Sistema & Túnel[/bold]"),
-                    RichLog(id="system-log", markup=True, highlight=True, auto_scroll=True),
-                    
-                    Label("[bold]Herramientas Extra[/bold]", classes="header-tiny"),
-                    Horizontal(
-                        Button("Instalar / Actualizar Server", id="btn-install", variant="primary"),
-                        Button("⚡ Optimizar", id="btn-optimize", variant="warning"),
-                        Button("Geyser/Floodgate", id="btn-geyser", variant="default"),
-                        Button("Iniciar Túnel", id="btn-tunnel", variant="default"),
-                        id="tools-row-1"
+                yield Horizontal(
+                    # Left Panel: Logs
+                    Vertical(
+                        Label("[bold]Logs del Sistema & Túnel[/bold]"),
+                        RichLog(id="system-log", markup=True, highlight=True, auto_scroll=True),
+                        id="system-left-panel"
                     ),
-                    Horizontal(
-                        Button("Abrir Carpeta Server", id="btn-open-root", variant="default"),
-                        Button("Abrir Plugins", id="btn-open-plugins", variant="default"),
-                        Button("Copiar Logs Sistema", id="btn-copy-logs", variant="default"),
-                        Button("🔄 Actualizar App", id="btn-update-app", variant="warning"),
-                        Button("Salir", id="btn-exit", variant="error"),
-                        id="tools-row-2"
+                    # Right Sidebar: Tools
+                    Vertical(
+                        Label("[bold]Control & Herramientas[/bold]", classes="sidebar-header"),
+                        Button("Instalar / Actualizar", id="btn-install", variant="primary", classes="sidebar-btn"),
+                        Button("⚙️ Configuración", id="btn-config", variant="default", classes="sidebar-btn"),
+                        Button("⚡ Optimizar", id="btn-optimize", variant="warning", classes="sidebar-btn"),
+                        Button("Geyser/Floodgate", id="btn-geyser", variant="default", classes="sidebar-btn"),
+                        Button("Iniciar Túnel", id="btn-tunnel", variant="default", classes="sidebar-btn"),
+                        
+                        Label("[dim]Archivos[/dim]", classes="sidebar-divider"),
+                        Button("📂 Carpeta Server", id="btn-open-root", variant="default", classes="sidebar-btn"),
+                        Button("📂 Plugins", id="btn-open-plugins", variant="default", classes="sidebar-btn"),
+                        Button("📋 Copiar Logs", id="btn-copy-logs", variant="default", classes="sidebar-btn"),
+                        
+                        Label("[dim]App[/dim]", classes="sidebar-divider"),
+                        Button("🔄 Actualizar App", id="btn-update-app", variant="warning", classes="sidebar-btn"),
+                        Button("Salir", id="btn-exit", variant="error", classes="sidebar-btn"),
+                        
+                        id="system-sidebar"
                     ),
                     id="system-area"
                 )
@@ -440,10 +461,28 @@ class MCSMApp(App):
         except Exception as e:
             self.log_write(f"[red]Error optimizando: {e}[/red]")
 
+    def open_properties_editor(self):
+        """Opens the properties editor modal."""
+        if not os.path.exists(os.path.join(self.server_dir, "server.properties")):
+            self.log_write("[yellow]No se encontró server.properties. Inicia el servidor al menos una vez.[/yellow]")
+            return
+
+        def editor_callback(result):
+            if result:
+                self.log_write("[green]✓ Configuración guardada correctamente.[/green]")
+                if self.server_controller and self.server_controller.process:
+                    self.log_write("[bold yellow]Algunos cambios requieren reiniciar el servidor.[/bold yellow]")
+            elif result is False:
+                 pass # Canceled or error handled inside
+        
+        self.push_screen(PropertiesEditorScreen(self.server_dir), editor_callback)
+
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
         if btn_id == "btn-install":
             self.open_install_screen()
+        elif btn_id == "btn-config":
+            self.open_properties_editor()
         elif btn_id == "btn-start":
             await self.start_server()
         elif btn_id == "btn-stop":
@@ -480,12 +519,59 @@ class MCSMApp(App):
         try:
             log = self.query_one("#server-log", RichLog)
             log.write(message)
+            
+            # Parse for Players
+            if self.player_manager:
+                try:
+                    if self.player_manager.parse_log(message):
+                        self.call_from_thread(self.update_player_list)
+                except Exception:
+                    pass
         except:
             pass
+
+    def update_player_list(self):
+        """Refreshes the player DataTable."""
+        try:
+            table = self.query_one("#player-list", DataTable)
+            table.clear()
+            
+            players = self.player_manager.get_players()
+            
+            # Title update
+            try:
+                self.query_one("#players-title").update(f"[bold]Jugadores en Línea ({len(players)})[/bold]")
+            except: 
+                pass
+
+            if not players:
+                return
+                
+            for player, data in players.items():
+                rank = data.get("rank", "User")
+                # Style rank
+                rank_styled = f"[bold red]{rank}[/]" if rank == "OP" else f"[dim]{rank}[/]"
+                
+                table.add_row(
+                    player,
+                    rank_styled, 
+                    data.get("ping", "?")
+                )
+        except Exception:
+             pass
 
     def on_mount(self) -> None:
         self.log_write("[bold green]Bienvenido a KubeControlMC[/]")
         self.log_write("[italic]Gestor de Servidores Minecraft Avanzado[/italic]")
+        
+        # Init Player Table
+        try:
+            table = self.query_one("#player-list", DataTable)
+            table.add_columns("Jugador", "Rango", "Ping")
+            table.cursor_type = "row"
+        except:
+            pass
+            
         self.check_installation()
 
     def check_installation(self):
@@ -502,7 +588,7 @@ class MCSMApp(App):
             self.query_one("#status-label").update("Estado: LISTO PARA INICIAR")
         else:
             self.log_write("[yellow]No se detectó ningún servidor instalado.[/yellow]")
-            # self.open_install_screen() # Optional: Don't force open
+            self.open_install_screen()
             
     def open_install_screen(self):
         """Opens the install modal. Guards against being called multiple times."""

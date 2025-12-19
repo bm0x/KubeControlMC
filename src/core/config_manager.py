@@ -45,8 +45,30 @@ class ConfigManager:
                     if line.strip().startswith(f"{key}="):
                         return line.split("=", 1)[1].strip()
         return None
-        
+
     @staticmethod
+    def get_all_properties(server_dir: str) -> dict:
+        """Reads all properties into a dictionary."""
+        props_path = os.path.join(server_dir, "server.properties")
+        properties = {}
+        if os.path.exists(props_path):
+            with open(props_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        properties[k.strip()] = v.strip()
+        return properties
+
+    @staticmethod
+    def save_all_properties(server_dir: str, properties: dict):
+        """Writes dictionary to server.properties."""
+        props_path = os.path.join(server_dir, "server.properties")
+        with open(props_path, "w") as f:
+            f.write("#Minecraft server properties\n")
+            f.write("#Edited by KubeControlMC\n")
+            for k, v in properties.items():
+                f.write(f"{k}={v}\n")
     def apply_aggressive_optimization(server_dir: str) -> list[str]:
         """
         Applies aggressive optimization settings to server configuration files.
