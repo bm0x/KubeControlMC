@@ -6,6 +6,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Button, Label, Input, RichLog, Select, TabbedContent, TabPane, DataTable
 from textual.containers import Container, Vertical, Horizontal
 from textual.worker import Worker, WorkerState
+from rich.text import Text
 
 from src.core.jar_manager import JarManager
 from src.core.server_controller import ServerController
@@ -537,7 +538,9 @@ class MCSMApp(App):
         """Write to the SERVER CONSOLE log widget."""
         try:
             log = self.query_one("#server-log", RichLog)
-            log.write(message)
+            # Use Text.from_ansi to parse ANSI codes but treat everything else as literal text.
+            # This prevents crashes when logs contain brackets like [/127.0.0.1].
+            log.write(Text.from_ansi(message))
             
             # Parse for Players
             if self.player_manager:
