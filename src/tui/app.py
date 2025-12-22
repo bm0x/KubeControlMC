@@ -815,7 +815,7 @@ class MCSMApp(App):
                     pass
             
             # 2. Update player UI immediately
-            self.call_from_thread(self.update_player_list)
+            self.update_player_list()
 
             # 3. Send /list just in case (as backup)
             # Check if process is still running
