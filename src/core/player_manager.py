@@ -153,9 +153,12 @@ class PlayerManager:
                 else:
                     self.players[name]["discord"] = "No Link"
                     
-                # Rank (Logic: logs might give OP, but JSON might give Permissions groups later)
-                # Keep existing rank if set by log (OP), else default
-                if "rank" not in self.players[name]:
+                # Rank (Logic: Use JSON rank if available)
+                # JSON now sends LuckPerms group or "OP"/"User"
+                json_rank = p.get("rank")
+                if json_rank:
+                     self.players[name]["rank"] = json_rank
+                elif "rank" not in self.players[name]:
                     self.players[name]["rank"] = "User"
             
             # Remove ghosts (players in memory but not in JSON? 

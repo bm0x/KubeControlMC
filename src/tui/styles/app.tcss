@@ -166,3 +166,18 @@ Button {
     margin: 0; /* Reset global button margin if it interferes */
 }
 
+/* Existing styles... append this */
+.hidden {
+    display: none;
+}
+
+.mod-btn {
+    margin: 1 1;
+    width: 1fr;
+}
+
+#moderation-bar {
+    height: auto;
+    margin-top: 1;
+    padding: 0 1;
+}

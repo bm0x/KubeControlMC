@@ -85,7 +85,14 @@ class MCSMApp(App):
                     # Right: Player List
                     Vertical(
                         Label("[bold]Jugadores en Línea[/bold]", id="players-title"),
-                        DataTable(id="player-list"),
+                        DataTable(id="player-list", cursor_type="row"),
+                        # Moderation Buttons
+                        Horizontal(
+                             Button("🦵 Kick", id="btn-kick", variant="warning", disabled=True, classes="mod-btn"),
+                             Button("🔨 Ban", id="btn-ban", variant="error", disabled=True, classes="mod-btn"),
+                             id="moderation-bar",
+                             classes="hidden" # Hidden by default until selection
+                        ),
                         id="dashboard-right"
                     ),
                     id="dashboard-container"
@@ -526,6 +533,52 @@ class MCSMApp(App):
             self.update_app()
         elif btn_id == "btn-exit": # Added button handler
             self.exit()
+        elif btn_id == "btn-kick":
+            self.action_kick_player()
+        elif btn_id == "btn-ban":
+            self.action_ban_player()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Enable moderation buttons when a row is selected."""
+        try:
+            # Show mod bar
+            mod_bar = self.query_one("#moderation-bar")
+            mod_bar.remove_class("hidden")
+            
+            self.query_one("#btn-kick").disabled = False
+            self.query_one("#btn-ban").disabled = False
+            
+            # Get player name (Column 0)
+            row_key = event.row_key
+            # We need to store the selected player somewhere
+            # DataTable usage: get_row(row_key) returns list of cells
+            table = self.query_one("#player-list", DataTable)
+            row_data = table.get_row(row_key)
+            self.selected_player = row_data[0] # Name is first column
+        except:
+            pass
+
+    def action_kick_player(self):
+        if not self.selected_player or not self.server_controller: return
+        
+        # Simple confirmation using commands directly? Or Modal?
+        # Let's just do it for speed as requested "options to kick/ban"
+        # Ideally we'd ask for a Reason. simpler: default reason.
+        
+        reason = "Kicked by Console Admin"
+        cmd = f"kick {self.selected_player} {reason}"
+        
+        self.log_write(f"[bold red]Kicking {self.selected_player}...[/bold red]")
+        asyncio.create_task(self.server_controller.write(cmd))
+
+    def action_ban_player(self):
+        if not self.selected_player or not self.server_controller: return
+        
+        reason = "Banned by Console Admin"
+        cmd = f"ban {self.selected_player} {reason}"
+        
+        self.log_write(f"[bold red]Banning {self.selected_player}...[/bold red]")
+        asyncio.create_task(self.server_controller.write(cmd))
 
     def log_write(self, message: str) -> None:
         """Write to the SYSTEM log widget."""
@@ -596,6 +649,7 @@ class MCSMApp(App):
             table = self.query_one("#player-list", DataTable)
             table.add_columns("Jugador", "Rango", "Ping", "Discord", "Dinero")
             table.cursor_type = "row"
+            # Enable selection events
         except:
             pass
             
