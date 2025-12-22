@@ -42,7 +42,7 @@ class MCSMApp(App):
         
         self.server_controller = None
         self.resource_watcher = None
-        self.player_manager = PlayerManager()
+        self.player_manager = PlayerManager(server_path=self.server_dir)
         self.current_jar = None
         self.current_tunnel_modal = None # Reference to active modal
         self.project_type = None
@@ -580,7 +580,9 @@ class MCSMApp(App):
                 table.add_row(
                     player,
                     rank_styled, 
-                    data.get("ping", "?")
+                    data.get("ping", "?"),
+                    data.get("discord", "-"),
+                    data.get("balance", "-")
                 )
         except Exception:
              pass
@@ -592,7 +594,7 @@ class MCSMApp(App):
         # Init Player Table
         try:
             table = self.query_one("#player-list", DataTable)
-            table.add_columns("Jugador", "Rango", "Ping")
+            table.add_columns("Jugador", "Rango", "Ping", "Discord", "Dinero")
             table.cursor_type = "row"
         except:
             pass
@@ -795,8 +797,27 @@ class MCSMApp(App):
         self.set_interval(10.0, self.sync_player_list)
 
     async def sync_player_list(self):
-        """Sends /list to server to keep player list in sync."""
+        """Syncs server state (JSON + Command)."""
         if self.server_controller and self.server_controller.process:
+            # 1. Try to read JSON state
+            stats = self.player_manager.sync_with_json()
+            if stats:
+                tps = stats.get("tps", 20.0)
+                # Update status label with TPS if running
+                try:
+                     status_lbl = self.query_one("#status-label")
+                     current_text = status_lbl.renderable
+                     if "EJECUTANDO" in str(current_text):
+                         # Preserve RAM info if present or just overwrite
+                         # Simplified update:
+                         status_lbl.update(f"Estado: EJECUTANDO | TPS: {tps:.1f}")
+                except:
+                    pass
+            
+            # 2. Update player UI immediately
+            self.call_from_thread(self.update_player_list)
+
+            # 3. Send /list just in case (as backup)
             # Check if process is still running
             if self.server_controller.process.returncode is None:
                 try:
