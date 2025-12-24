@@ -181,6 +181,50 @@ EOF
 
 chmod +x "$LAUNCHER"
 
+# --- 4.5. Desktop Entry Setup ---
+echo "Configurando acceso directo de escritorio..."
+
+# Copy launcher to install dir (it might be redundant if we copied all, but ensure permission)
+cp "$(dirname "$0")/launcher.sh" "$INSTALL_DIR/launcher.sh" 2>/dev/null || echo "#!/bin/bash" > "$INSTALL_DIR/launcher.sh" 
+# Ensure launcher exists if cp failed (running from curl/pipe?) - Actually install logic at lines 108-110 copies everything.
+# So we just ensure executable permission.
+if [ ! -f "$INSTALL_DIR/launcher.sh" ]; then
+    # Create it locally if not found (fallback)
+    cat <<'EOF' > "$INSTALL_DIR/launcher.sh"
+#!/bin/bash
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$DIR"
+export PYTHONPATH="$DIR/libs:$PYTHONPATH"
+python3 main.py "$@"
+if [ $? -ne 0 ]; then
+    echo "Error. Esperando 10s..."
+    sleep 10
+fi
+EOF
+fi
+
+chmod +x "$INSTALL_DIR/launcher.sh"
+
+DESKTOP_DIR="$HOME/.local/share/applications"
+mkdir -p "$DESKTOP_DIR"
+
+cat <<EOF > "$DESKTOP_DIR/kubecontrol.desktop"
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=KubeControl MC
+Comment=Gestor de Servidores Minecraft TUI
+Exec=$INSTALL_DIR/launcher.sh
+Icon=utilities-terminal
+Terminal=true
+Categories=Utility;Game;
+StartupNotify=true
+EOF
+
+# Update database
+update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+echo -e "\e[32m[OK] Acceso directo creado en el menú de aplicaciones.\e[0m"
+
 # 5. PATH Handling logic
 CURRENT_PATH="$PATH"
 BIN_DIR="$HOME/.local/bin"
