@@ -177,14 +177,40 @@ class KubeControlGUI(ctk.CTk):
 
         ctk.CTkLabel(right_frame, text="Jugadores en Línea", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
         
-        # Using ttk.Treeview for table (better for data)
-        self.player_tree = ttk.Treeview(right_frame, columns=("name", "discord", "balance"), show="headings", height=15)
-        self.player_tree.heading("name", text="Nombre")
+        # Style for dark mode Treeview
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("Dark.Treeview",
+                        background="#2b2b2b",
+                        foreground="white",
+                        fieldbackground="#2b2b2b",
+                        borderwidth=0,
+                        rowheight=28)
+        style.configure("Dark.Treeview.Heading",
+                        background="#1f538d",
+                        foreground="white",
+                        borderwidth=0,
+                        font=("Segoe UI", 10, "bold"))
+        style.map("Dark.Treeview",
+                  background=[("selected", "#1971c2")],
+                  foreground=[("selected", "white")])
+        
+        # Player table with more columns
+        columns = ("name", "rank", "ping", "discord", "balance")
+        self.player_tree = ttk.Treeview(right_frame, columns=columns, show="headings", height=12, style="Dark.Treeview")
+        
+        self.player_tree.heading("name", text="Jugador")
+        self.player_tree.heading("rank", text="Rango")
+        self.player_tree.heading("ping", text="Ping")
         self.player_tree.heading("discord", text="Discord")
         self.player_tree.heading("balance", text="Balance")
-        self.player_tree.column("name", width=150)
-        self.player_tree.column("discord", width=120)
-        self.player_tree.column("balance", width=80)
+        
+        self.player_tree.column("name", width=120, anchor="w")
+        self.player_tree.column("rank", width=80, anchor="center")
+        self.player_tree.column("ping", width=60, anchor="center")
+        self.player_tree.column("discord", width=130, anchor="w")
+        self.player_tree.column("balance", width=90, anchor="e")
+        
         self.player_tree.pack(fill="both", expand=True, padx=10)
 
         # Moderation Buttons
@@ -196,6 +222,10 @@ class KubeControlGUI(ctk.CTk):
         
         self.btn_ban = ctk.CTkButton(mod_frame, text="🔨 Ban", fg_color="red", command=self.action_ban, state="disabled", width=100)
         self.btn_ban.pack(side="left", padx=5)
+        
+        # OP Button
+        self.btn_op = ctk.CTkButton(mod_frame, text="⭐ OP", fg_color="#1971c2", command=self.action_op, state="disabled", width=80)
+        self.btn_op.pack(side="left", padx=5)
 
         self.player_tree.bind("<<TreeviewSelect>>", self._on_player_select)
 
@@ -656,23 +686,32 @@ class KubeControlGUI(ctk.CTk):
         if selection:
             self.btn_kick.configure(state="normal")
             self.btn_ban.configure(state="normal")
+            self.btn_op.configure(state="normal")
         else:
             self.btn_kick.configure(state="disabled")
             self.btn_ban.configure(state="disabled")
+            self.btn_op.configure(state="disabled")
 
     def action_kick(self):
         selection = self.player_tree.selection()
         if selection and self.server_controller:
             player = self.player_tree.item(selection[0])["values"][0]
             asyncio.run_coroutine_threadsafe(self.server_controller.write(f"kick {player}"), self.loop)
-            self.log_console(f"[MOD] Kicked: {player}")
+            self.log_console(f"Kicked: {player}")
 
     def action_ban(self):
         selection = self.player_tree.selection()
         if selection and self.server_controller:
             player = self.player_tree.item(selection[0])["values"][0]
             asyncio.run_coroutine_threadsafe(self.server_controller.write(f"ban {player}"), self.loop)
-            self.log_console(f"[MOD] Banned: {player}")
+            self.log_console(f"Banned: {player}")
+
+    def action_op(self):
+        selection = self.player_tree.selection()
+        if selection and self.server_controller:
+            player = self.player_tree.item(selection[0])["values"][0]
+            asyncio.run_coroutine_threadsafe(self.server_controller.write(f"op {player}"), self.loop)
+            self.log_console(f"OP granted: {player}")
 
 
 if __name__ == "__main__":
