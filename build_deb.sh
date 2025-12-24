@@ -31,13 +31,26 @@ rm -rf build "$DIST_DIR"
 # Ensure libs are in path
 export PYTHONPATH="$(pwd)/libs:$PYTHONPATH"
 
-# Ensure server_bin exists (needed for --add-data)
+# Ensure required directories exist (GitHub Actions won't have libs/)
 mkdir -p server_bin
+mkdir -p libs
+mkdir -p assets
 
 # Hidden imports common for TUI/GUI
 HIDDEN_IMPORTS="--hidden-import=textual --hidden-import=textual.app --hidden-import=textual.widgets"
 HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=customtkinter --hidden-import=rich --hidden-import=PIL"
 HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=aiohttp --hidden-import=asyncio"
+
+# Build ADD_DATA arguments conditionally
+ADD_DATA="--add-data src:src --add-data server_bin:server_bin"
+
+# Add assets if icon exists, otherwise create placeholder
+if [ ! -f "assets/icon.png" ]; then
+    echo "Creating placeholder icon..."
+    # Create a minimal 1x1 PNG (placeholder)
+    python3 -c "from PIL import Image; img=Image.new('RGBA',(256,256),(50,100,200,255)); img.save('assets/icon.png')"
+fi
+ADD_DATA="$ADD_DATA --add-data assets:assets"
 
 # Build command (Outputs to dist/kubecontrol-mc directory)
 # --noconsole prevents terminal window.
@@ -50,10 +63,7 @@ pyinstaller --noconfirm --onedir --noconsole --clean \
     --collect-all textual \
     --collect-all customtkinter \
     --collect-all rich \
-    --add-data "src:src" \
-    --add-data "assets:assets" \
-    --add-data "libs:libs" \
-    --add-data "server_bin:server_bin" \
+    $ADD_DATA \
     main.py
 
 echo "[OK] Compilación completada."
