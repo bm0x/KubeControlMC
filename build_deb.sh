@@ -9,12 +9,19 @@ DIST_DIR="dist"
 
 echo "=== Iniciando Construcción de Paquete DEB ($APP_NAME v$VERSION) ==="
 
-# 1. Install PyInstaller
-echo "[1/5] Verificando PyInstaller..."
+# 1. Install Build Dependencies
+echo "[1/5] Instalando dependencias de compilación..."
+
+# Install PyInstaller if not present
 if ! command -v pyinstaller &> /dev/null; then
     echo "Instalando PyInstaller..."
-    pip install pyinstaller --break-system-packages || pip install pyinstaller
+    pip install pyinstaller --break-system-packages 2>/dev/null || pip install pyinstaller
 fi
+
+# Install all runtime dependencies so PyInstaller can find and bundle them
+echo "Instalando dependencias de Python para empaquetado..."
+pip install textual rich customtkinter pillow aiohttp psutil --break-system-packages 2>/dev/null || \
+pip install textual rich customtkinter pillow aiohttp psutil
 
 # 2. Build Binary
 echo "[2/5] Compilando Binario con PyInstaller..."
@@ -28,18 +35,24 @@ export PYTHONPATH="$(pwd)/libs:$PYTHONPATH"
 mkdir -p server_bin
 
 # Hidden imports common for TUI/GUI
-HIDDEN_IMPORTS="--hidden-import=textual --hidden-import=customtkinter --hidden-import=rich --hidden-import=PIL"
+HIDDEN_IMPORTS="--hidden-import=textual --hidden-import=textual.app --hidden-import=textual.widgets"
+HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=customtkinter --hidden-import=rich --hidden-import=PIL"
+HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=aiohttp --hidden-import=asyncio"
 
 # Build command (Outputs to dist/kubecontrol-mc directory)
 # --noconsole prevents terminal window.
-# --icon sets the window icon (for Windows/some Linux DEs).
+# --paths adds our local libs directory to the search path.
 pyinstaller --noconfirm --onedir --noconsole --clean \
     --name "$APP_NAME" \
+    --paths "./libs" \
+    --paths "." \
     $HIDDEN_IMPORTS \
     --collect-all textual \
     --collect-all customtkinter \
+    --collect-all rich \
     --add-data "src:src" \
     --add-data "assets:assets" \
+    --add-data "libs:libs" \
     --add-data "server_bin:server_bin" \
     main.py
 
