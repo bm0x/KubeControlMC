@@ -13,3 +13,12 @@ libs/
 # IDE
 .vscode/
 .idea/
+
+# Build
+build/
+dist/
+build_deb/
+build_rpm/
+build_win/
+kubecontrol-mc.*
+kubecontrol-mc_*.deb

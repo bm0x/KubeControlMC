@@ -13,10 +13,16 @@ fi
 # Set PYTHONPATH to include local libs if they exist
 export PYTHONPATH="$DIR/libs:$PYTHONPATH"
 
+# Log output for debugging
+LOG_FILE="/tmp/kcmc_launch.log"
+echo "[$(date)] Launching KubeControlMC..." > "$LOG_FILE"
+echo "DIR: $DIR" >> "$LOG_FILE"
+echo "PYTHON: $(which python3)" >> "$LOG_FILE"
+
 # Run the app
 # Using gnome-terminal or xterm if not in a terminal is handled by the .desktop "Terminal=true" 
 # This script just prepares environment.
-python3 main.py "$@"
+python3 main.py "$@" >> "$LOG_FILE" 2>&1
 
 # If it crashes, keep open for 5 seconds to read error
 if [ $? -ne 0 ]; then

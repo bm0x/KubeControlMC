@@ -217,13 +217,20 @@ Comment=Gestor de Servidores Minecraft TUI
 Exec=$INSTALL_DIR/launcher.sh
 Icon=utilities-terminal
 Terminal=true
-Categories=Utility;Game;
+Categories=Utility;Game;System;
 StartupNotify=true
 EOF
 
+chmod +x "$DESKTOP_DIR/kubecontrol.desktop"
+
 # Update database
 update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+# Try to refresh gnome/pantheon shell
+if command -v update-menus &> /dev/null; then update-menus; fi
+
 echo -e "\e[32m[OK] Acceso directo creado en el menú de aplicaciones.\e[0m"
+echo -e "\e[33m[NOTA] Si no aparece el icono, intenta cerrar sesión o reiniciar.\e[0m"
+echo -e "\e[33m[DEBUG] Log de lanzamiento disponible en /tmp/kcmc_launch.log\e[0m"
 
 # 5. PATH Handling logic
 CURRENT_PATH="$PATH"
