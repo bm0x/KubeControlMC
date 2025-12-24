@@ -4,7 +4,8 @@ import sys
 import threading
 import asyncio
 import subprocess
-from tkinter import StringVar, END
+import re
+from tkinter import StringVar, END, messagebox
 from tkinter import ttk
 from PIL import Image
 
@@ -248,17 +249,24 @@ class KubeControlGUI(ctk.CTk):
         ctk.CTkButton(tools_frame, text="🔄 Actualizar App", fg_color="teal", command=self.action_update_app, **btn_cfg).pack(pady=3)
 
     # ========== LOGGING ==========
+    def _strip_rich_markup(self, text):
+        """Remove Rich console markup tags like [bold], [dim], [/], etc."""
+        # Pattern matches [word], [/word], [/], [bold word], etc.
+        return re.sub(r'\[/?[a-zA-Z0-9_ ]*\]', '', text)
+
     def log_console(self, text):
         """Append text to console tab."""
+        clean_text = self._strip_rich_markup(text)
         self.console_text.configure(state="normal")
-        self.console_text.insert(END, text + "\n")
+        self.console_text.insert(END, clean_text + "\n")
         self.console_text.see(END)
         self.console_text.configure(state="disabled")
 
     def log_system(self, text):
         """Append text to system log."""
+        clean_text = self._strip_rich_markup(text)
         self.system_log.configure(state="normal")
-        self.system_log.insert(END, text + "\n")
+        self.system_log.insert(END, clean_text + "\n")
         self.system_log.see(END)
         self.system_log.configure(state="disabled")
 
@@ -319,11 +327,7 @@ class KubeControlGUI(ctk.CTk):
         self.log_console("[GUI] Iniciando servidor...")
         
         if not self.current_jar:
-            self.log_console("[!] No hay JAR. Descargando Paper 1.21.1...")
-            def download():
-                self.jar_manager.download_jar("paper", "1.21.4")
-                self.after(100, self.action_start)
-            threading.Thread(target=download, daemon=True).start()
+            self._show_install_dialog()
             return
 
         ram = self.ram_var.get()
@@ -331,6 +335,45 @@ class KubeControlGUI(ctk.CTk):
         self.server_controller.set_callback(lambda msg: self.after(0, self.log_console, msg))
         
         asyncio.run_coroutine_threadsafe(self.server_controller.start(), self.loop)
+
+    def _show_install_dialog(self):
+        """Show dialog to select and download a server JAR."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Instalar Servidor")
+        dialog.geometry("400x300")
+        dialog.transient(self)
+        dialog.grab_set()
+        
+        ctk.CTkLabel(dialog, text="Selecciona el tipo de servidor:", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=20)
+        
+        server_type = StringVar(value="paper")
+        
+        ctk.CTkRadioButton(dialog, text="Paper (Recomendado - Estable)", variable=server_type, value="paper").pack(pady=5)
+        ctk.CTkRadioButton(dialog, text="Folia (Experimental - Multihilo)", variable=server_type, value="folia").pack(pady=5)
+        ctk.CTkRadioButton(dialog, text="Velocity (Proxy)", variable=server_type, value="velocity").pack(pady=5)
+        
+        ctk.CTkLabel(dialog, text="Versión:").pack(pady=(20,5))
+        version_var = StringVar(value="1.21.4")
+        version_entry = ctk.CTkEntry(dialog, textvariable=version_var, width=150)
+        version_entry.pack()
+        
+        def do_install():
+            stype = server_type.get()
+            version = version_var.get()
+            dialog.destroy()
+            self.log_system(f"[GUI] Descargando {stype} {version}...")
+            
+            def download_task():
+                try:
+                    jar_path = self.jar_manager.download_jar(stype, version)
+                    self.after(0, lambda: self.log_system(f"[OK] JAR descargado: {os.path.basename(jar_path)}"))
+                    self.current_jar = jar_path
+                except Exception as e:
+                    self.after(0, lambda: self.log_system(f"[ERROR] {e}"))
+            
+            threading.Thread(target=download_task, daemon=True).start()
+        
+        ctk.CTkButton(dialog, text="Descargar e Instalar", fg_color="green", command=do_install).pack(pady=20)
 
     def action_stop(self):
         self.log_console("[GUI] Deteniendo servidor...")
@@ -356,8 +399,7 @@ class KubeControlGUI(ctk.CTk):
         self.after(1000, self.quit)
 
     def action_install(self):
-        self.log_system("[GUI] Abriendo instalador...")
-        # TODO: Implement install dialog
+        self._show_install_dialog()
 
     def action_config(self):
         self.log_system("[GUI] Abriendo configuración...")
