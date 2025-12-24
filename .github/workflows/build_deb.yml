@@ -1,0 +1,45 @@
+name: Build DEB Package
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: 'pip'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Install project requirements
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # Install build tools
+        pip install pyinstaller pillow customtkinter
+
+    - name: Build DEB Package
+      run: |
+        chmod +x build_deb.sh
+        # Run build script
+        # Note: Github Actions might prevent sudo usage inside script if not carefully handled,
+        # but our script uses user-space pyinstaller and dpkg-deb which doesn't strictly require root 
+        # for building structure, only for installing.
+        ./build_deb.sh
+
+    - name: Upload DEB Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: kubecontrol-mc-deb
+        path: kubecontrol-mc_*.deb
+        retention-days: 5
