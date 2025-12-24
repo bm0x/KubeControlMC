@@ -9,6 +9,17 @@ class JarManager:
         if not os.path.exists(self.download_dir):
             os.makedirs(self.download_dir)
 
+    def get_current_jar(self) -> str:
+        """Find the first/latest JAR file in the download directory."""
+        if not os.path.exists(self.download_dir):
+            return None
+        jars = [f for f in os.listdir(self.download_dir) if f.endswith('.jar')]
+        if jars:
+            # Return most recently modified JAR
+            jars.sort(key=lambda x: os.path.getmtime(os.path.join(self.download_dir, x)), reverse=True)
+            return os.path.join(self.download_dir, jars[0])
+        return None
+
     def get_versions(self, project: str) -> list[str]:
         """Get available versions for a project (paper, folia, velocity)"""
         try:
