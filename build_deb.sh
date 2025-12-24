@@ -156,9 +156,14 @@ cat <<EOF > "$BUILD_DIR/DEBIAN/postinst"
 #!/bin/bash
 set -e
 
-# Fix permissions in /opt
-chmod -R 755 /opt/$APP_NAME
+# CRITICAL: Make application directory and all contents writable by any user
+# This allows the app to create/modify server files when run by normal users
+chmod -R 777 /opt/$APP_NAME
 chmod +x /opt/$APP_NAME/$APP_NAME
+
+# Create server_bin directory with full permissions
+mkdir -p /opt/$APP_NAME/server_bin
+chmod -R 777 /opt/$APP_NAME/server_bin
 
 # Update menu and icon caches
 update-desktop-database /usr/share/applications 2>/dev/null || true
