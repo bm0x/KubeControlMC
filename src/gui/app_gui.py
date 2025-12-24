@@ -159,17 +159,31 @@ class KubeControlGUI(ctk.CTk):
 
         ctk.CTkLabel(left_frame, text="Estado del Servidor", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
         
-        self.info_frame = ctk.CTkFrame(left_frame)
+        self.info_frame = ctk.CTkFrame(left_frame, fg_color=("gray85", "gray20"), corner_radius=10)
         self.info_frame.pack(fill="x", padx=10, pady=5)
         
-        self.lbl_jar = ctk.CTkLabel(self.info_frame, text="JAR: No seleccionado", anchor="w")
-        self.lbl_jar.pack(fill="x", padx=10, pady=2)
+        # Server info labels
+        self.lbl_jar = ctk.CTkLabel(self.info_frame, text="🎮 JAR: No seleccionado", anchor="w", font=ctk.CTkFont(size=12))
+        self.lbl_jar.pack(fill="x", padx=15, pady=3)
         
-        self.lbl_ram_info = ctk.CTkLabel(self.info_frame, text="RAM: --", anchor="w")
-        self.lbl_ram_info.pack(fill="x", padx=10, pady=2)
+        self.lbl_mc_version = ctk.CTkLabel(self.info_frame, text="📦 Versión MC: --", anchor="w", font=ctk.CTkFont(size=12))
+        self.lbl_mc_version.pack(fill="x", padx=15, pady=3)
         
-        self.lbl_players_count = ctk.CTkLabel(self.info_frame, text="Jugadores: 0", anchor="w")
-        self.lbl_players_count.pack(fill="x", padx=10, pady=2)
+        self.lbl_tps = ctk.CTkLabel(self.info_frame, text="⚡ TPS: --", anchor="w", font=ctk.CTkFont(size=12))
+        self.lbl_tps.pack(fill="x", padx=15, pady=3)
+        
+        self.lbl_ram_info = ctk.CTkLabel(self.info_frame, text="💾 RAM: --", anchor="w", font=ctk.CTkFont(size=12))
+        self.lbl_ram_info.pack(fill="x", padx=15, pady=3)
+        
+        self.lbl_players_count = ctk.CTkLabel(self.info_frame, text="👥 Jugadores: 0", anchor="w", font=ctk.CTkFont(size=12))
+        self.lbl_players_count.pack(fill="x", padx=15, pady=3)
+        
+        self.lbl_uptime = ctk.CTkLabel(self.info_frame, text="⏱️ Uptime: --", anchor="w", font=ctk.CTkFont(size=12))
+        self.lbl_uptime.pack(fill="x", padx=15, pady=(3, 10))
+        
+        # Initialize tracking variables
+        self.mc_version = None
+        self.server_start_time = None
 
         # Right Panel: Player List
         right_frame = ctk.CTkFrame(self.tab_dashboard, fg_color="transparent")
@@ -335,12 +349,56 @@ class KubeControlGUI(ctk.CTk):
 
     # ========== STATUS CHECK ==========
     def _check_status_periodic(self):
+        import time
+        
         if self.server_controller and self.server_controller.process:
             if self.server_controller.process.returncode is None:
                 self.status_label.configure(text="● ONLINE", text_color="green")
                 self.btn_start.configure(state="disabled")
                 self.btn_stop.configure(state="normal")
                 self.btn_restart.configure(state="normal")
+                
+                # Track server start time
+                if not self.server_start_time:
+                    self.server_start_time = time.time()
+                
+                # Uptime calculation
+                uptime_sec = int(time.time() - self.server_start_time)
+                hours, remainder = divmod(uptime_sec, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                self.lbl_uptime.configure(text=f"⏱️ Uptime: {hours:02d}:{minutes:02d}:{seconds:02d}")
+                
+                # Sync with server-state.json (from KubeControlPlugin)
+                stats = self.player_manager.sync_with_json()
+                if stats:
+                    tps = stats.get("tps", 20.0)
+                    ram_used = stats.get("ram_used", 0)
+                    ram_max = stats.get("ram_max", 0)
+                    
+                    # TPS Color coding
+                    if tps >= 19:
+                        tps_color = "green"
+                        tps_status = "Excelente"
+                    elif tps >= 15:
+                        tps_color = "yellow"
+                        tps_status = "Bueno"
+                    else:
+                        tps_color = "red"
+                        tps_status = "Bajo"
+                    
+                    self.lbl_tps.configure(text=f"⚡ TPS: {tps:.1f} ({tps_status})", text_color=tps_color)
+                    
+                    # RAM
+                    if ram_max > 0:
+                        ram_pct = (ram_used / ram_max) * 100
+                        self.lbl_ram_info.configure(text=f"💾 RAM: {ram_used}MB / {ram_max}MB ({ram_pct:.0f}%)")
+                    
+                    # Player count
+                    players = self.player_manager.get_players()
+                    self.lbl_players_count.configure(text=f"👥 Jugadores: {len(players)}")
+                    
+                    # Update player table
+                    self._update_player_table(players)
             else:
                 self._set_stopped_state()
         else:
@@ -349,12 +407,31 @@ class KubeControlGUI(ctk.CTk):
         # Update JAR info
         jar = self.jar_manager.get_current_jar()
         if jar:
-            self.lbl_jar.configure(text=f"JAR: {os.path.basename(jar)}")
+            self.lbl_jar.configure(text=f"🎮 JAR: {os.path.basename(jar)}")
             self.current_jar = jar
-        
-        self.lbl_ram_info.configure(text=f"RAM: {self.ram_var.get()}")
+            
+            # Extract MC version from JAR name (e.g., paper-1.21.4-123.jar -> 1.21.4)
+            import re
+            match = re.search(r'-(\d+\.\d+\.?\d*)-', os.path.basename(jar))
+            if match:
+                self.mc_version = match.group(1)
+                self.lbl_mc_version.configure(text=f"📦 Versión MC: {self.mc_version}")
         
         self.after(1000, self._check_status_periodic)
+
+    def _update_player_table(self, players):
+        """Update the player treeview with current data."""
+        # Clear existing
+        for item in self.player_tree.get_children():
+            self.player_tree.delete(item)
+        
+        # Insert players
+        for name, data in players.items():
+            rank = data.get("rank", "User")
+            ping = data.get("ping", "?")
+            discord = data.get("discord", "No Link")
+            balance = data.get("balance", "$0")
+            self.player_tree.insert("", "end", values=(name, rank, ping, discord, balance))
 
     def _set_stopped_state(self):
         self.status_label.configure(text="● DETENIDO", text_color="red")
@@ -362,6 +439,9 @@ class KubeControlGUI(ctk.CTk):
         self.btn_stop.configure(state="disabled")
         self.btn_restart.configure(state="disabled")
         self.server_controller = None
+        self.server_start_time = None
+        self.lbl_tps.configure(text="⚡ TPS: --", text_color="gray")
+        self.lbl_uptime.configure(text="⏱️ Uptime: --")
 
     # ========== ACTIONS ==========
     def action_start(self):
