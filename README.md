@@ -1,61 +1,73 @@
 # 🧊 KubeControlMC
 
-**Tu Servidor de Minecraft, Simplificado y Potente.**
+![Main View](https://via.placeholder.com/800x400?text=KubeControl+Dashboard+GUI)
+[![Build DEB Package](https://github.com/bm0x/KubeControlMC/actions/workflows/build_deb.yml/badge.svg)](https://github.com/bm0x/KubeControlMC/actions/workflows/build_deb.yml)
 
-KubeControlMC es la herramienta definitiva para crear y administrar servidores de Minecraft sin dolores de cabeza. Diseñada para jugadores, no para ingenieros, pero con la potencia que los expertos desean.
+**Tu Servidor de Minecraft, Simplificado y Potente (Aplicación de Escritorio).**
 
-![KubeControlMC Preview](https://via.placeholder.com/800x400?text=KubeControlMC+Dashboard)
+KubeControlMC es la herramienta definitiva para crear y administrar servidores de Minecraft sin dolores de cabeza. Ahora disponible como una **Aplicación Nativa** para Linux.
 
-## ✨ ¿Por qué KubeControlMC?
+## ✨ Características Desktop First
 
-*   **🚀 Rendimiento Extremo**: Elige entre **PaperMC** (Estable) o **Folia** (Velocidad absurda) con un solo clic.
-*   **🤝 Juega con Todos**: Invita a tus amigos de consola (PlayStation, Xbox, Switch) y celular gracias a la integración automática de **Geyser**.
-*   **🌍 Sin Puertos Probemáticos**: Olvídate de abrir puertos en tu router. Crea un enlace público seguro en segundos.
-*   **🧠 Inteligencia Artificial (IA) de Recursos**: Un guardián silencioso optimiza la RAM de tu servidor en tiempo real para eliminar el lag.
-*   **💻 Dashboard Profesional 2.0**: Panel de control organizado en pestañas (Dashboard, Consola, Sistema) para tener todo bajo control.
-*   **⚡ Optimizador de FPS**: ¿Tu PC es modesta? Pulsa "Optimizar" para aplicar configuraciones agresivas de rendimiento automáticamente.
-*   **🛡️ Modo Mantenimiento Seguro**: Reinicia y actualiza tu servidor sin riesgo de corrupción ni pérdida de objetos (con bloqueo de protección).
+*   **🖥️ Interfaz Gráfica (GUI)**: Olvídate de la terminal. Usa botones, menús y ventanas reales con Modo Oscuro nativo.
+*   **📦 Instalación Nativa**: Se instala como cualquier programa (`.deb`), con su propio icono en el menú de aplicaciones.
+*   **🚀 Rendimiento Extremo**: Elige entre **PaperMC** (Estable) o **Folia** (Velocidad absurda) con un clic.
+*   **🤝 Túnel Automático**: Juega con amigos sin abrir puertos. Enlace público seguro integrado.
+*   **🧠 IA de Recursos**: Un guardián silencioso optimiza la RAM de tu servidor en tiempo real.
+*   **⚡ Optimizador de FPS**: Configuraciones agresivas de rendimiento aplicadas automáticamente.
 
 ---
 
-## 📥 Instalación (En 1 paso)
+## 📥 Instalación
 
-Copia y pega este comando en tu terminal de Linux. El asistente se encargará de todo.
+### Opción A (Recomendada): Paquete DEB
+Descarga el último release desde la pestaña "Actions" o "Releases" e instálalo:
 
+```bash
+sudo apt install ./kubecontrol-mc_1.0.0_amd64.deb
+```
+
+Luego búscalo en tu menú de aplicaciones como **"KubeControl MC"**.
+
+### Opción B: Script de Instalación Rápida
+Si prefieres instalar desde la fuente:
 ```bash
 curl -sL https://raw.githubusercontent.com/bm0x/KubeControlMC/main/install.sh | bash
 ```
-
-> **Nota**: El instalador descargará las dependencias necesarias y creará el comando `kcmc` en tu sistema.
 
 ---
 
 ## 🎮 Cómo Usar
 
-Una vez instalado, no necesitas navegar a ninguna carpeta extraña. Simplemente abre tu terminal en cualquier lugar y escribe:
+### Modo Escritorio (GUI)
+Simplemente haz clic en el icono **KubeControl** en tu menú.
+Todo se gestiona visualmente:
+1.  **Dashboard**: Inicia/Detiene el servidor y ve el estado.
+2.  **Consola**: Ve los logs en tiempo real y envía comandos.
+3.  **Config**: Ajusta la RAM y versiones.
 
+### Modo Terminal (TUI)
+¿Eres un usuario avanzado o usas un servidor sin monitor?
 ```bash
-kcmc
+kcmc --tui
 ```
+Esto abrirá la interfaz clásica de terminal ligera.
 
-### Primeros Pasos
-1.  **Selecciona tu Núcleo**: Al abrirlo por primera vez, elige si quieres estabilidad (Paper) o rendimiento (Folia).
-2.  **Enciende**: Pulsa el botón `Iniciar`.
-3.  **Comparte**: Si quieres jugar con amigos, pulsa `Iniciar Túnel` y pásales el enlace.
+### Compilación Manual
+Si quieres generar tu propio instalador `.deb`:
+```bash
+./build_deb.sh
+```
 
 ---
 
 ## ❓ Preguntas Frecuentes
 
-**¿El comando `kcmc` no funciona?**
-Es probable que tu sistema no esté leyendo la carpeta de programas locales. Ejecuta esto y prueba de nuevo:
-```bash
-export PATH=$PATH:$HOME/.local/bin
-```
-*(Para hacerlo permanente, añade esa línea al final de tu archivo `.bashrc` o `.zshrc`)*.
+**¿Funciona en Windows?**
+Actualmente es nativo para Linux (Debian, Ubuntu, Elementary, Mint). Estamos trabajando en la versión `.exe`.
 
 **¿Dónde están mis archivos?**
-Todo está guardado de forma segura en `~/mcsm` en tu carpeta personal. Puedes abrir esa carpeta directamente desde la aplicación pulsando "Abrir Carpeta Server".
+Todo se guarda en `/opt/kubecontrol-mc` (binarios) y los datos del servidor suelen estar en tu directorio de ejecución o `~/mcsm`.
 
 ---
 
