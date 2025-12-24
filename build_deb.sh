@@ -56,8 +56,26 @@ mkdir -p "$BUILD_DIR/opt"
 
 # Move compiled binary to /opt/kubecontrol-mc
 cp -r "$DIST_DIR/$APP_NAME" "$BUILD_DIR/opt/$APP_NAME"
-# Copy Icon
-cp assets/icon.png "$BUILD_DIR/usr/share/icons/hicolor/256x256/apps/kubecontrol-mc.png"
+
+# Copy Icon at multiple resolutions for broad compatibility
+mkdir -p "$BUILD_DIR/usr/share/icons/hicolor/48x48/apps"
+mkdir -p "$BUILD_DIR/usr/share/icons/hicolor/128x128/apps"
+mkdir -p "$BUILD_DIR/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "$BUILD_DIR/usr/share/pixmaps"
+
+# Resize icon for different sizes (if ImageMagick is available, else just copy)
+if command -v convert &> /dev/null; then
+    convert assets/icon.png -resize 48x48 "$BUILD_DIR/usr/share/icons/hicolor/48x48/apps/kubecontrol-mc.png"
+    convert assets/icon.png -resize 128x128 "$BUILD_DIR/usr/share/icons/hicolor/128x128/apps/kubecontrol-mc.png"
+    convert assets/icon.png -resize 256x256 "$BUILD_DIR/usr/share/icons/hicolor/256x256/apps/kubecontrol-mc.png"
+else
+    cp assets/icon.png "$BUILD_DIR/usr/share/icons/hicolor/48x48/apps/kubecontrol-mc.png"
+    cp assets/icon.png "$BUILD_DIR/usr/share/icons/hicolor/128x128/apps/kubecontrol-mc.png"
+    cp assets/icon.png "$BUILD_DIR/usr/share/icons/hicolor/256x256/apps/kubecontrol-mc.png"
+fi
+
+# Also add to pixmaps as fallback (older DEs)
+cp assets/icon.png "$BUILD_DIR/usr/share/pixmaps/kubecontrol-mc.png"
 
 # Create Symlink script (wrapper to run from /opt)
 WRAPPER="$BUILD_DIR/usr/local/bin/kcmc"
@@ -98,16 +116,28 @@ Categories=Utility;Game;System;
 StartupNotify=true
 EOF
 
-# Postinst Script (Permissions)
+# Postinst Script (Permissions + Icon Cache)
 cat <<EOF > "$BUILD_DIR/DEBIAN/postinst"
 #!/bin/bash
 set -e
+
 # Fix permissions in /opt
 chmod -R 755 /opt/$APP_NAME
 chmod +x /opt/$APP_NAME/$APP_NAME
-# Update menu
-update-desktop-database /usr/share/applications || true
-echo "KubeControl MC instalado correctamente."
+
+# Update menu and icon caches
+update-desktop-database /usr/share/applications 2>/dev/null || true
+
+# Refresh icon cache (critical for icons to appear)
+if command -v gtk-update-icon-cache &> /dev/null; then
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+fi
+if command -v update-icon-caches &> /dev/null; then
+    update-icon-caches /usr/share/icons/hicolor 2>/dev/null || true
+fi
+
+echo "[KubeControl MC] Instalado correctamente."
+echo "Busca 'KubeControl' en tu menú de aplicaciones."
 EOF
 chmod 755 "$BUILD_DIR/DEBIAN/postinst"
 
