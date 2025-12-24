@@ -19,6 +19,7 @@ from src.core.jar_manager import JarManager
 from src.core.tunnel_manager import TunnelManager
 from src.core.player_manager import PlayerManager
 from src.core.plugin_manager import PluginManager
+from src.core.config_manager import ConfigManager
 
 
 class KubeControlGUI(ctk.CTk):
@@ -334,11 +335,16 @@ class KubeControlGUI(ctk.CTk):
 
     # ========== ACTIONS ==========
     def action_start(self):
-        self.log_console("[GUI] Iniciando servidor...")
+        self.log_console("Iniciando servidor...")
         
         if not self.current_jar:
             self._show_install_dialog()
             return
+
+        # Ensure EULA is accepted
+        self.log_console("Configurando EULA...")
+        ConfigManager.ensure_eula(self.server_dir)
+        self.log_console("EULA aceptado automáticamente.")
 
         ram = self.ram_var.get()
         self.server_controller = ServerController(self.current_jar, java_args=[f"-Xms{ram}", f"-Xmx{ram}"])
@@ -402,13 +408,60 @@ class KubeControlGUI(ctk.CTk):
         self.after(5000, self.action_start)
 
     def action_tunnel(self):
-        self.log_system("[GUI] Iniciando túnel...")
-        asyncio.run_coroutine_threadsafe(self.tunnel_manager.start(), self.loop)
+        """Show tunnel configuration dialog and start tunnel."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Configurar Túnel")
+        dialog.geometry("450x300")
+        dialog.transient(self)
+        dialog.after(100, dialog.lift)
+        dialog.after(100, dialog.focus_force)
+        
+        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        ctk.CTkLabel(main_frame, text="Túnel Playit.gg", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(0,15))
+        ctk.CTkLabel(main_frame, text="Playit.gg permite que jugadores se conecten\na tu servidor sin necesidad de abrir puertos.", text_color="gray").pack(pady=5)
+        
+        # Status
+        self.tunnel_status_label = ctk.CTkLabel(main_frame, text="Estado: Desconectado", text_color="orange")
+        self.tunnel_status_label.pack(pady=10)
+        
+        def start_tunnel():
+            dialog.destroy()
+            self.log_system("Iniciando túnel Playit.gg...")
+            asyncio.run_coroutine_threadsafe(self.tunnel_manager.start(), self.loop)
+        
+        def stop_tunnel():
+            self.log_system("Deteniendo túnel...")
+            asyncio.run_coroutine_threadsafe(self.tunnel_manager.stop(), self.loop)
+            dialog.destroy()
+        
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(pady=20)
+        
+        ctk.CTkButton(btn_frame, text="▶ Iniciar Túnel", fg_color="green", command=start_tunnel, width=150).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="⏹ Detener", fg_color="red", command=stop_tunnel, width=150).pack(side="left", padx=5)
+        
+        ctk.CTkLabel(main_frame, text="La primera vez deberás vincular tu cuenta\nen el enlace que aparecerá en los logs.", text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=(10,0))
 
     def action_reset_tunnel(self):
-        self.log_system("[GUI] Reinstalando túnel...")
-        asyncio.run_coroutine_threadsafe(self.tunnel_manager.stop(), self.loop)
-        # TODO: Implement tunnel binary deletion and reinstall
+        """Reinstall tunnel binary."""
+        self.log_system("Reinstalando agente de túnel...")
+        
+        def reset_task():
+            # Stop tunnel first
+            asyncio.run_coroutine_threadsafe(self.tunnel_manager.stop(), self.loop).result()
+            
+            # Delete the binary
+            playit_path = os.path.join(self.server_dir, "playit")
+            if os.path.exists(playit_path):
+                os.remove(playit_path)
+                self.after(0, lambda: self.log_system("Agente eliminado."))
+            
+            # Trigger re-download on next start
+            self.after(0, lambda: self.log_system("Reinstalación lista. Inicia el túnel para descargar el agente nuevo."))
+        
+        threading.Thread(target=reset_task, daemon=True).start()
 
     def action_exit(self):
         self.action_stop()
@@ -419,15 +472,78 @@ class KubeControlGUI(ctk.CTk):
         self._show_install_dialog()
 
     def action_config(self):
-        self.log_system("[GUI] Abriendo configuración...")
-        # TODO: Implement config editor dialog
+        """Open server.properties editor dialog."""
+        props_path = os.path.join(self.server_dir, "server.properties")
+        if not os.path.exists(props_path):
+            self.log_system("No existe server.properties. Inicia el servidor primero.")
+            return
+        
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Configuración del Servidor")
+        dialog.geometry("600x500")
+        dialog.transient(self)
+        dialog.after(100, dialog.lift)
+        dialog.after(100, dialog.focus_force)
+        
+        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        
+        ctk.CTkLabel(main_frame, text="server.properties", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(0,10))
+        
+        # Scrollable frame for properties
+        scroll_frame = ctk.CTkScrollableFrame(main_frame, height=350)
+        scroll_frame.pack(fill="both", expand=True)
+        
+        # Load properties
+        props = ConfigManager.get_all_properties(self.server_dir)
+        entries = {}
+        
+        # Important properties first
+        important = ["server-port", "motd", "max-players", "gamemode", "difficulty", "pvp", "online-mode",
+                     "view-distance", "simulation-distance", "spawn-protection", "allow-flight"]
+        
+        for key in important:
+            if key in props:
+                row = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+                row.pack(fill="x", pady=2)
+                ctk.CTkLabel(row, text=key, width=200, anchor="w").pack(side="left", padx=5)
+                entry = ctk.CTkEntry(row, width=200)
+                entry.insert(0, props[key])
+                entry.pack(side="right", padx=5)
+                entries[key] = entry
+        
+        # Add separator
+        ctk.CTkLabel(scroll_frame, text="─── Otras Opciones ───", text_color="gray").pack(pady=10)
+        
+        # Other properties
+        for key, val in props.items():
+            if key not in important:
+                row = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+                row.pack(fill="x", pady=2)
+                ctk.CTkLabel(row, text=key, width=200, anchor="w").pack(side="left", padx=5)
+                entry = ctk.CTkEntry(row, width=200)
+                entry.insert(0, val)
+                entry.pack(side="right", padx=5)
+                entries[key] = entry
+        
+        def save_config():
+            new_props = {k: e.get() for k, e in entries.items()}
+            ConfigManager.save_all_properties(self.server_dir, new_props)
+            self.log_system("Configuración guardada. Reinicia el servidor para aplicar cambios.")
+            dialog.destroy()
+        
+        ctk.CTkButton(main_frame, text="Guardar", fg_color="green", command=save_config).pack(pady=15)
 
     def action_optimize(self):
-        self.log_system("[GUI] Optimizando servidor...")
-        # TODO: Implement optimizer
+        """Apply optimization settings to server."""
+        self.log_system("Aplicando optimizaciones...")
+        changes = ConfigManager.apply_aggressive_optimization(self.server_dir)
+        for change in changes:
+            self.log_system(f"  • {change}")
+        self.log_system("Optimización completada. Reinicia el servidor para aplicar.")
 
     def action_geyser(self):
-        self.log_system("[GUI] Instalando Geyser/Floodgate...")
+        self.log_system("Instalando Geyser/Floodgate...")
         # TODO: Implement geyser install
 
     def action_copy_logs(self):
@@ -435,25 +551,52 @@ class KubeControlGUI(ctk.CTk):
             import pyperclip
             text = self.console_text.get("1.0", END)
             pyperclip.copy(text)
-            self.log_system("[OK] Logs copiados al portapapeles.")
+            self.log_system("Logs copiados al portapapeles.")
         except:
-            self.log_system("[!] Error copiando logs (pyperclip no disponible).")
+            # Fallback: use xclip
+            try:
+                text = self.console_text.get("1.0", END)
+                process = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
+                process.communicate(text.encode())
+                self.log_system("Logs copiados al portapapeles.")
+            except:
+                self.log_system("Error copiando logs.")
 
     def action_update_app(self):
         if self.server_controller and self.server_controller.process and self.server_controller.process.returncode is None:
-            self.log_system("[!] Detén el servidor antes de actualizar.")
+            self.log_system("Detén el servidor antes de actualizar.")
             return
-        self.log_system("[GUI] Buscando actualizaciones...")
+        self.log_system("Buscando actualizaciones...")
         # TODO: Implement git pull or similar
 
     def open_folder(self, path):
+        """Open folder in system file manager (not code editor)."""
         if not os.path.exists(path):
             os.makedirs(path)
         try:
-            subprocess.Popen(["xdg-open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.log_system(f"[OK] Abriendo: {path}")
+            # Try common file managers first, then fallback to xdg-open
+            file_managers = ["io.elementary.files", "pantheon-files", "nautilus", "dolphin", "thunar", "nemo", "pcmanfm", "caja"]
+            opened = False
+            for fm in file_managers:
+                try:
+                    result = subprocess.run(["which", fm], capture_output=True)
+                    if result.returncode == 0:
+                        subprocess.Popen([fm, path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                        opened = True
+                        break
+                except:
+                    continue
+            
+            if not opened:
+                # Fallback to gio open (preferred on GNOME/Elementary) or xdg-open
+                try:
+                    subprocess.Popen(["gio", "open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                except:
+                    subprocess.Popen(["xdg-open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            
+            self.log_system(f"Abriendo: {path}")
         except Exception as e:
-            self.log_system(f"[!] Error abriendo carpeta: {e}")
+            self.log_system(f"Error abriendo carpeta: {e}")
 
     def _send_command(self, event):
         cmd = self.cmd_entry.get()
