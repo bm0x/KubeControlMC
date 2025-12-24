@@ -445,22 +445,41 @@ class KubeControlGUI(ctk.CTk):
 
     # ========== ACTIONS ==========
     def action_start(self):
-        self.log_console("Iniciando servidor...")
-        
+        """Start the Minecraft server."""
         if not self.current_jar:
             self._show_install_dialog()
             return
 
+        # Disable start button immediately
+        self.btn_start.configure(state="disabled")
+        self.log_console("Preparando servidor...")
+        
         # Ensure EULA is accepted
-        self.log_console("Configurando EULA...")
         ConfigManager.ensure_eula(self.server_dir)
-        self.log_console("EULA aceptado automáticamente.")
+        self.log_console("EULA aceptado.")
 
         ram = self.ram_var.get()
-        self.server_controller = ServerController(self.current_jar, java_args=[f"-Xms{ram}", f"-Xmx{ram}"])
-        self.server_controller.set_callback(lambda msg: self.after(0, self.log_console, msg))
+        self.log_console(f"Iniciando servidor con {ram} de RAM...")
         
-        asyncio.run_coroutine_threadsafe(self.server_controller.start(), self.loop)
+        # Create server controller
+        self.server_controller = ServerController(self.current_jar, java_args=[f"-Xms{ram}", f"-Xmx{ram}"])
+        
+        # Set callback to redirect output to console
+        def on_server_output(msg):
+            self.after(0, lambda: self.log_console(msg))
+        self.server_controller.set_callback(on_server_output)
+        
+        # Start in background thread
+        def start_async():
+            future = asyncio.run_coroutine_threadsafe(self.server_controller.start(), self.loop)
+            try:
+                future.result(timeout=10)  # Wait up to 10s for startup
+                self.after(0, lambda: self.log_console("Servidor iniciado correctamente."))
+            except Exception as e:
+                self.after(0, lambda: self.log_console(f"Error iniciando servidor: {e}"))
+                self.after(0, self._set_stopped_state)
+        
+        threading.Thread(target=start_async, daemon=True).start()
 
     def _show_install_dialog(self):
         """Show dialog to select and download a server JAR."""
@@ -509,13 +528,67 @@ class KubeControlGUI(ctk.CTk):
         ctk.CTkButton(main_frame, text="Descargar e Instalar", fg_color="green", hover_color="darkgreen", command=do_install, width=200).pack(pady=25)
 
     def action_stop(self):
-        self.log_console("[GUI] Deteniendo servidor...")
-        if self.server_controller:
-            asyncio.run_coroutine_threadsafe(self.server_controller.stop(), self.loop)
+        """Stop the Minecraft server gracefully."""
+        if not self.server_controller:
+            self.log_console("No hay servidor activo.")
+            return
+        
+        self.log_console("Deteniendo servidor...")
+        self.btn_stop.configure(state="disabled")
+        self.btn_restart.configure(state="disabled")
+        
+        def stop_async():
+            try:
+                # Send stop command first for graceful shutdown
+                asyncio.run_coroutine_threadsafe(
+                    self.server_controller.write("stop"), self.loop
+                ).result(timeout=5)
+                
+                # Wait a bit for graceful stop
+                import time
+                time.sleep(3)
+                
+                # Force stop if still running
+                asyncio.run_coroutine_threadsafe(
+                    self.server_controller.stop(), self.loop
+                ).result(timeout=10)
+                
+                self.after(0, lambda: self.log_console("Servidor detenido."))
+            except Exception as e:
+                self.after(0, lambda: self.log_console(f"Error deteniendo: {e}"))
+            finally:
+                self.after(0, self._set_stopped_state)
+        
+        threading.Thread(target=stop_async, daemon=True).start()
 
     def action_restart(self):
-        self.action_stop()
-        self.after(5000, self.action_start)
+        """Restart the Minecraft server."""
+        self.log_console("Reiniciando servidor...")
+        
+        def restart_sequence():
+            # Stop server
+            if self.server_controller:
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        self.server_controller.write("stop"), self.loop
+                    ).result(timeout=5)
+                    import time
+                    time.sleep(3)
+                    asyncio.run_coroutine_threadsafe(
+                        self.server_controller.stop(), self.loop
+                    ).result(timeout=10)
+                except:
+                    pass
+            
+            self.after(0, self._set_stopped_state)
+            
+            # Wait a moment then start
+            import time
+            time.sleep(2)
+            self.after(0, self.action_start)
+        
+        self.btn_restart.configure(state="disabled")
+        threading.Thread(target=restart_sequence, daemon=True).start()
 
     def action_tunnel(self):
         """Show tunnel configuration dialog and start tunnel."""
