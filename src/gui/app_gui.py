@@ -249,14 +249,24 @@ class KubeControlGUI(ctk.CTk):
         ctk.CTkButton(tools_frame, text="🔄 Actualizar App", fg_color="teal", command=self.action_update_app, **btn_cfg).pack(pady=3)
 
     # ========== LOGGING ==========
-    def _strip_rich_markup(self, text):
-        """Remove Rich console markup tags like [bold], [dim], [/], etc."""
-        # Pattern matches [word], [/word], [/], [bold word], etc.
-        return re.sub(r'\[/?[a-zA-Z0-9_ ]*\]', '', text)
+    def _strip_markup(self, text):
+        """Remove Rich console markup AND ANSI escape codes from text."""
+        # 1. Strip ANSI escape codes (like \x1b[8m, \x1b[0m, etc)
+        ansi_pattern = re.compile(r'\x1b\[[0-9;]*m')
+        text = ansi_pattern.sub('', text)
+        
+        # 2. Strip Rich markup tags like [bold], [dim], [/], [cyan], etc.
+        rich_pattern = re.compile(r'\[/?[a-zA-Z0-9_ ]*\]')
+        text = rich_pattern.sub('', text)
+        
+        # 3. Clean any remaining weird characters (like standalone "8" from escape codes)
+        text = re.sub(r'(?<!\d)8(?!\d)', '', text)  # Remove standalone "8" not part of numbers
+        
+        return text.strip()
 
     def log_console(self, text):
         """Append text to console tab."""
-        clean_text = self._strip_rich_markup(text)
+        clean_text = self._strip_markup(text)
         self.console_text.configure(state="normal")
         self.console_text.insert(END, clean_text + "\n")
         self.console_text.see(END)
@@ -264,7 +274,7 @@ class KubeControlGUI(ctk.CTk):
 
     def log_system(self, text):
         """Append text to system log."""
-        clean_text = self._strip_rich_markup(text)
+        clean_text = self._strip_markup(text)
         self.system_log.configure(state="normal")
         self.system_log.insert(END, clean_text + "\n")
         self.system_log.see(END)
@@ -340,40 +350,47 @@ class KubeControlGUI(ctk.CTk):
         """Show dialog to select and download a server JAR."""
         dialog = ctk.CTkToplevel(self)
         dialog.title("Instalar Servidor")
-        dialog.geometry("400x300")
+        dialog.geometry("400x350")
         dialog.transient(self)
-        dialog.grab_set()
         
-        ctk.CTkLabel(dialog, text="Selecciona el tipo de servidor:", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=20)
+        # Fix for empty dialog - wait for window to be ready
+        dialog.after(100, dialog.lift)
+        dialog.after(100, dialog.focus_force)
+        
+        # Main container frame
+        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        ctk.CTkLabel(main_frame, text="Selecciona el tipo de servidor:", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(0,15))
         
         server_type = StringVar(value="paper")
         
-        ctk.CTkRadioButton(dialog, text="Paper (Recomendado - Estable)", variable=server_type, value="paper").pack(pady=5)
-        ctk.CTkRadioButton(dialog, text="Folia (Experimental - Multihilo)", variable=server_type, value="folia").pack(pady=5)
-        ctk.CTkRadioButton(dialog, text="Velocity (Proxy)", variable=server_type, value="velocity").pack(pady=5)
+        ctk.CTkRadioButton(main_frame, text="Paper (Recomendado - Estable)", variable=server_type, value="paper").pack(anchor="w", pady=5)
+        ctk.CTkRadioButton(main_frame, text="Folia (Experimental - Multihilo)", variable=server_type, value="folia").pack(anchor="w", pady=5)
+        ctk.CTkRadioButton(main_frame, text="Velocity (Proxy)", variable=server_type, value="velocity").pack(anchor="w", pady=5)
         
-        ctk.CTkLabel(dialog, text="Versión:").pack(pady=(20,5))
+        ctk.CTkLabel(main_frame, text="Versión de Minecraft:").pack(pady=(20,5))
         version_var = StringVar(value="1.21.4")
-        version_entry = ctk.CTkEntry(dialog, textvariable=version_var, width=150)
+        version_entry = ctk.CTkEntry(main_frame, textvariable=version_var, width=150)
         version_entry.pack()
         
         def do_install():
             stype = server_type.get()
             version = version_var.get()
             dialog.destroy()
-            self.log_system(f"[GUI] Descargando {stype} {version}...")
+            self.log_system(f"Descargando {stype} {version}...")
             
             def download_task():
                 try:
                     jar_path = self.jar_manager.download_jar(stype, version)
-                    self.after(0, lambda: self.log_system(f"[OK] JAR descargado: {os.path.basename(jar_path)}"))
+                    self.after(0, lambda: self.log_system(f"JAR descargado: {os.path.basename(jar_path)}"))
                     self.current_jar = jar_path
                 except Exception as e:
-                    self.after(0, lambda: self.log_system(f"[ERROR] {e}"))
+                    self.after(0, lambda: self.log_system(f"ERROR: {e}"))
             
             threading.Thread(target=download_task, daemon=True).start()
         
-        ctk.CTkButton(dialog, text="Descargar e Instalar", fg_color="green", command=do_install).pack(pady=20)
+        ctk.CTkButton(main_frame, text="Descargar e Instalar", fg_color="green", hover_color="darkgreen", command=do_install, width=200).pack(pady=25)
 
     def action_stop(self):
         self.log_console("[GUI] Deteniendo servidor...")
