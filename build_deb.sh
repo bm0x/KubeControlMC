@@ -96,24 +96,36 @@ Version: $VERSION
 Section: utils
 Priority: optional
 Architecture: $ARCH
+Depends: python3-tk, libtk8.6, libc6
+Recommends: default-jre
 Maintainer: KubeControl Team <admin@example.com>
-Description: Gestor de Servidores Minecraft (TUI/GUI)
- Herramienta avanzada para desplegar y gestionar servidores de Minecraft.
- Incluye soporte para Java, Bedrock, Túneles y Discord.
+Homepage: https://github.com/bm0x/KubeControlMC
+Description: Professional Minecraft Server Manager (GUI)
+ Advanced tool to deploy and manage Minecraft servers.
+ Includes support for Java, Bedrock, Tunnels, and Discord integration.
+ .
+ Features:
+  - Native GUI (no terminal required)
+  - Automatic server downloads (Paper, Folia, Velocity)
+  - Tunnel support for easy multiplayer
+  - RAM optimization and monitoring
 EOF
 
 # Desktop Entry
-cat <<EOF > "$BUILD_DIR/usr/share/applications/kubecontrol.desktop"
+cat <<EOF > "$BUILD_DIR/usr/share/applications/kubecontrol-mc.desktop"
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=KubeControl MC
-Comment=Gestor de Servidores Minecraft Profesional
+GenericName=Minecraft Server Manager
+Comment=Professional Minecraft Server Manager
 Exec=/usr/local/bin/kcmc
 Icon=kubecontrol-mc
 Terminal=false
-Categories=Utility;Game;System;
+Categories=Game;
+Keywords=minecraft;server;management;
 StartupNotify=true
+StartupWMClass=kubecontrol-mc
 EOF
 
 # Postinst Script (Permissions + Icon Cache)
