@@ -543,8 +543,54 @@ class KubeControlGUI(ctk.CTk):
         self.log_system("Optimización completada. Reinicia el servidor para aplicar.")
 
     def action_geyser(self):
-        self.log_system("Instalando Geyser/Floodgate...")
-        # TODO: Implement geyser install
+        """Show Geyser/Floodgate installation dialog."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Instalar Geyser/Floodgate")
+        dialog.geometry("450x350")
+        dialog.transient(self)
+        dialog.after(100, dialog.lift)
+        dialog.after(100, dialog.focus_force)
+        
+        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        ctk.CTkLabel(main_frame, text="Geyser & Floodgate", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(0,10))
+        ctk.CTkLabel(main_frame, text="Geyser permite que jugadores de Bedrock\nse conecten a tu servidor Java.", text_color="gray").pack(pady=5)
+        ctk.CTkLabel(main_frame, text="Floodgate permite autenticación sin\ncuenta Java (usando cuenta Xbox).", text_color="gray").pack(pady=5)
+        
+        # Checkboxes
+        install_geyser = ctk.BooleanVar(value=True)
+        install_floodgate = ctk.BooleanVar(value=True)
+        
+        ctk.CTkCheckBox(main_frame, text="Instalar Geyser", variable=install_geyser).pack(pady=5, anchor="w")
+        ctk.CTkCheckBox(main_frame, text="Instalar Floodgate", variable=install_floodgate).pack(pady=5, anchor="w")
+        
+        progress_label = ctk.CTkLabel(main_frame, text="", text_color="gray")
+        progress_label.pack(pady=10)
+        
+        def do_install():
+            dialog.destroy()
+            
+            def install_task():
+                try:
+                    if install_geyser.get():
+                        self.after(0, lambda: self.log_system("Descargando Geyser-Spigot.jar..."))
+                        path = self.plugin_manager.download_geyser()
+                        self.after(0, lambda: self.log_system(f"Geyser instalado: {os.path.basename(path)}"))
+                    
+                    if install_floodgate.get():
+                        self.after(0, lambda: self.log_system("Descargando Floodgate-Spigot.jar..."))
+                        path = self.plugin_manager.download_floodgate()
+                        self.after(0, lambda: self.log_system(f"Floodgate instalado: {os.path.basename(path)}"))
+                    
+                    self.after(0, lambda: self.log_system("Instalación completada. Reinicia el servidor para activar los plugins."))
+                except Exception as e:
+                    self.after(0, lambda: self.log_system(f"Error instalando: {e}"))
+            
+            threading.Thread(target=install_task, daemon=True).start()
+        
+        ctk.CTkButton(main_frame, text="Instalar Seleccionados", fg_color="green", command=do_install, width=200).pack(pady=20)
+        ctk.CTkLabel(main_frame, text="Nota: Requiere reiniciar el servidor\npara activar los plugins.", text_color="gray", font=ctk.CTkFont(size=11)).pack()
 
     def action_copy_logs(self):
         try:
