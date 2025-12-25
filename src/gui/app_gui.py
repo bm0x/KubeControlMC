@@ -24,7 +24,8 @@ from src.core.config_manager import ConfigManager
 
 class KubeControlGUI(ctk.CTk):
     def __init__(self):
-        super().__init__()
+        # specific className sets WM_CLASS for Dock grouping
+        super().__init__(className='kubecontrol-mc')
 
         # --- Base directory setup ---
         if getattr(sys, 'frozen', False):
@@ -41,10 +42,7 @@ class KubeControlGUI(ctk.CTk):
         self.title("KubeControl MC")
         self.geometry("1200x750")
         
-        # Set WM Class (Critical for Dock/Icon grouping on Linux)
-        # Matches StartupWMClass in .desktop file
-        # Format: (instance_name, class_name)
-        self.call('wm', 'class', self, 'kubecontrol-mc', 'KubeControl-MC')
+        # WM Class set via __init__ className
         
         # Load Icon
         icon_path = os.path.join(self.base_dir, "assets", "icon.png")
