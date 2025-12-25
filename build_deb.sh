@@ -121,7 +121,7 @@ Version: $VERSION
 Section: utils
 Priority: optional
 Architecture: $ARCH
-Depends: python3-tk, libtk8.6, libc6, python3-pil.imagetk
+Depends: python3-tk, libtk8.6, libc6
 Recommends: default-jre
 Maintainer: KubeControl Team <admin@example.com>
 Homepage: https://github.com/bm0x/KubeControlMC
