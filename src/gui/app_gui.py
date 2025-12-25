@@ -7,7 +7,7 @@ import subprocess
 import re
 from tkinter import StringVar, END, messagebox
 from tkinter import ttk
-from PIL import Image
+from PIL import Image, ImageTk
 
 # Ensure sys.path includes our libs if running standalone
 base_check = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -37,17 +37,26 @@ class KubeControlGUI(ctk.CTk):
             os.makedirs(self.server_dir)
 
         # --- Window Setup ---
+        # Window Setup
         self.title("KubeControl MC")
         self.geometry("1200x750")
+        
+        # Set WM Class (Critical for Dock/Icon grouping on Linux)
+        # Matches StartupWMClass in .desktop file
+        # Format: (instance_name, class_name)
+        self.call('wm', 'class', self, 'kubecontrol-mc', 'KubeControl-MC')
         
         # Load Icon
         icon_path = os.path.join(self.base_dir, "assets", "icon.png")
         if os.path.exists(icon_path):
             try:
+                # Use standard PhotoImage for window icon, not CTkImage
                 img = Image.open(icon_path)
-                self.iconphoto(False, ctk.CTkImage(light_image=img, dark_image=img, size=(32,32))._light_image)
-            except Exception:
-                pass
+                photo = ImageTk.PhotoImage(img)
+                self.iconphoto(True, photo)
+                self.wm_iconphoto(True, photo)
+            except Exception as e:
+                print(f"Warning: Could not load icon: {e}")
 
         ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("blue")
