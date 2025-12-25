@@ -9,19 +9,21 @@ DIST_DIR="dist"
 
 echo "=== Iniciando Construcción de Paquete DEB ($APP_NAME v$VERSION) ==="
 
-# 1. Install Build Dependencies
-echo "[1/5] Instalando dependencias de compilación..."
-
-# Install PyInstaller if not present
-if ! command -v pyinstaller &> /dev/null; then
-    echo "Instalando PyInstaller..."
-    pip install pyinstaller --break-system-packages 2>/dev/null || pip install pyinstaller
+# 1. Setup Virtual Environment
+echo "[1/5] Configurando entorno virtual..."
+if [ ! -d ".venv" ]; then
+    echo "Creando venv..."
+    python3 -m venv .venv
 fi
+source .venv/bin/activate
 
-# Install all runtime dependencies so PyInstaller can find and bundle them
-echo "Instalando dependencias de Python para empaquetado..."
-pip install textual rich customtkinter pillow aiohttp psutil --break-system-packages 2>/dev/null || \
-pip install textual rich customtkinter pillow aiohttp psutil
+# Install Dependencies in VENV
+echo "Instalando dependencias en venv..."
+pip install --upgrade pip
+pip install pyinstaller textual rich customtkinter pillow aiohttp psutil requests
+
+# Verify libraries
+python3 -c "import PIL.ImageTk; print('PIL.ImageTk found')" || echo "WARNING: PIL.ImageTk not found in venv!"
 
 # 2. Build Binary
 echo "[2/5] Compilando Binario con PyInstaller..."
@@ -38,7 +40,7 @@ mkdir -p assets
 
 # Hidden imports common for TUI/GUI
 HIDDEN_IMPORTS="--hidden-import=textual --hidden-import=textual.app --hidden-import=textual.widgets"
-HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=customtkinter --hidden-import=rich --hidden-import=PIL"
+HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=customtkinter --hidden-import=rich --hidden-import=PIL --hidden-import=PIL.ImageTk"
 HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=aiohttp --hidden-import=asyncio"
 
 # Build ADD_DATA arguments conditionally
@@ -119,7 +121,7 @@ Version: $VERSION
 Section: utils
 Priority: optional
 Architecture: $ARCH
-Depends: python3-tk, libtk8.6, libc6
+Depends: python3-tk, libtk8.6, libc6, python3-pil.imagetk
 Recommends: default-jre
 Maintainer: KubeControl Team <admin@example.com>
 Homepage: https://github.com/bm0x/KubeControlMC
