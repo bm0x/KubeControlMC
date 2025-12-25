@@ -65,7 +65,10 @@ class KubeControlGUI(ctk.CTk):
         self.player_manager = PlayerManager(server_path=self.server_dir)
         
         self.server_controller = None
-        self.current_jar = None
+        self.current_jar = self.jar_manager.get_current_jar()
+        self.server_start_time = None
+        self.is_starting = False
+        self.mc_version = None
         self.tunnel_retry_count = 0
 
         # --- UI Layout ---
@@ -348,9 +351,19 @@ class KubeControlGUI(ctk.CTk):
                 pass
 
     # ========== STATUS CHECK ==========
+    # ========== STATUS CHECK ==========
     def _check_status_periodic(self):
         import time
         
+        # If server is starting, show loading status and skip stopped check
+        if self.is_starting:
+            self.status_label.configure(text="⏳ INICIANDO...", text_color="orange")
+            self.btn_start.configure(state="disabled")
+            self.btn_stop.configure(state="disabled")
+            self.btn_restart.configure(state="disabled")
+            self.after(1000, self._check_status_periodic)
+            return
+
         if self.server_controller and self.server_controller.process:
             if self.server_controller.process.returncode is None:
                 self.status_label.configure(text="● ONLINE", text_color="green")
@@ -440,6 +453,7 @@ class KubeControlGUI(ctk.CTk):
         self.btn_restart.configure(state="disabled")
         self.server_controller = None
         self.server_start_time = None
+        self.is_starting = False
         self.lbl_tps.configure(text="⚡ TPS: --", text_color="gray")
         self.lbl_uptime.configure(text="⏱️ Uptime: --")
 
@@ -450,7 +464,8 @@ class KubeControlGUI(ctk.CTk):
             self._show_install_dialog()
             return
 
-        # Disable start button immediately
+        # Disable start button immediately and set starting flag
+        self.is_starting = True
         self.btn_start.configure(state="disabled")
         self.log_console("Preparando servidor...")
         
@@ -473,10 +488,13 @@ class KubeControlGUI(ctk.CTk):
         def start_async():
             future = asyncio.run_coroutine_threadsafe(self.server_controller.start(), self.loop)
             try:
-                future.result(timeout=10)  # Wait up to 10s for startup
+                future.result(timeout=15)  # Wait up to 15s for startup (increased)
                 self.after(0, lambda: self.log_console("Servidor iniciado correctamente."))
+                # Flag as done starting, let status check pick it up
+                self.is_starting = False 
             except Exception as e:
                 self.after(0, lambda: self.log_console(f"Error iniciando servidor: {e}"))
+                self.is_starting = False
                 self.after(0, self._set_stopped_state)
         
         threading.Thread(target=start_async, daemon=True).start()
