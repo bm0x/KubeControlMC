@@ -14,6 +14,7 @@ from src.core.server_controller import ServerController
 from src.core.player_manager import PlayerManager
 from src.core.config_manager import ConfigManager
 from src.core.resource_watcher import ResourceWatcher
+from src.core.server_sanitizer import ServerSanitizer
 from src.tui.screens.install import InstallScreen
 from src.tui.screens.properties_editor import PropertiesEditorScreen
 from src.tui.screens.tunnel_config import TunnelConfigScreen
@@ -121,6 +122,7 @@ class MCSMApp(App):
                         Button("Instalar / Actualizar", id="btn-install", variant="primary", classes="sidebar-btn"),
                         Button("⚙️ Configuración", id="btn-config", variant="default", classes="sidebar-btn"),
                         Button("⚡ Optimizar", id="btn-optimize", variant="warning", classes="sidebar-btn"),
+                        Button("🔧 Reparar Estructura", id="btn-sanitize", variant="warning", classes="sidebar-btn"),
                         Button("Geyser/Floodgate", id="btn-geyser", variant="default", classes="sidebar-btn"),
                         Button("Iniciar Túnel", id="btn-tunnel", variant="default", classes="sidebar-btn"),
                         Button("♻️ Reinstalar Túnel", id="btn-reset-tunnel", variant="error", classes="sidebar-btn"),
@@ -487,6 +489,39 @@ class MCSMApp(App):
         except Exception as e:
             self.log_write(f"[red]Error optimizando: {e}[/red]")
 
+    def sanitize_server_structure(self):
+        """Run directory sanitization to fix misplaced files."""
+        self.log_write("[cyan]🔧 Analizando estructura del servidor...[/cyan]")
+        try:
+            sanitizer = ServerSanitizer(self.server_dir)
+            report = sanitizer.scan()
+            
+            if not report.has_issues:
+                self.log_write("[green]✓ Estructura correcta. No se encontraron problemas.[/green]")
+                summary = sanitizer.get_structure_summary()
+                self.log_write(f"[dim]JAR: {summary.get('server_jar', 'No encontrado')}[/dim]")
+                self.log_write(f"[dim]Plugins: {summary.get('plugins_count', 0)}[/dim]")
+                return
+            
+            self.log_write(f"[yellow]⚠ Encontrados {len(report.issues)} problema(s):[/yellow]")
+            for issue in report.issues:
+                self.log_write(f"[dim]  - {issue.issue_type}: {os.path.basename(issue.file_path)}[/dim]")
+            
+            # Perform sanitization
+            result = sanitizer.sanitize(dry_run=False)
+            
+            if result.success:
+                self.log_write(f"[green]✓ Reparación completada: {len(result.moved_files)} archivo(s) movidos.[/green]")
+                for moved in result.moved_files:
+                    self.log_write(f"[dim]  Movido: {os.path.basename(moved['from'])} → plugins/[/dim]")
+            else:
+                self.log_write(f"[red]Errores durante reparación:[/red]")
+                for error in result.errors:
+                    self.log_write(f"[red]  {error}[/red]")
+                    
+        except Exception as e:
+            self.log_write(f"[red]Error en sanitización: {e}[/red]")
+
     def open_properties_editor(self):
         """Opens the properties editor modal."""
         if not os.path.exists(os.path.join(self.server_dir, "server.properties")):
@@ -523,6 +558,8 @@ class MCSMApp(App):
             self.reset_tunnel_config()
         elif btn_id == "btn-optimize":
             self.optimize_server_config()
+        elif btn_id == "btn-sanitize":
+            self.sanitize_server_structure()
         elif btn_id == "btn-open-root": # Added button handler
             self.open_folder(self.server_dir)
         elif btn_id == "btn-open-plugins": # Added button handler

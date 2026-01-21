@@ -20,6 +20,22 @@ class JarManager:
             return os.path.join(self.download_dir, jars[0])
         return None
 
+    def is_server_jar(self, filename: str) -> bool:
+        """
+        Determine if a JAR file is a server JAR (not a plugin).
+        
+        Args:
+            filename: Name of the JAR file
+            
+        Returns:
+            True if it's a server JAR (paper, folia, etc.), False otherwise
+        """
+        server_patterns = ['paper-', 'folia-', 'velocity-', 'spigot-', 'craftbukkit-',
+                          'purpur-', 'pufferfish-', 'airplane-', 'tuinity-']
+        lower_name = filename.lower()
+        return any(lower_name.startswith(p) for p in server_patterns)
+
+
     def get_versions(self, project: str) -> list[str]:
         """Get available versions for a project (paper, folia, velocity)"""
         try:

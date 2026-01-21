@@ -77,24 +77,22 @@ if ! command -v $PYTHON_BIN &> /dev/null; then
     exit 1
 fi
 
-# 3. Setup Directory
+# 3. Setup Directory - Smart Preservation Mode
 if [ -d "$INSTALL_DIR" ]; then
     echo "Directorio $INSTALL_DIR ya existe."
     
-    # PRESERVE SERVER DATA (server_bin)
-    if [ -d "$INSTALL_DIR/server_bin" ]; then
-        echo -e "\e[33m[!] Detectados datos de servidor. Realizando copia de seguridad de server_bin...\e[0m"
-        TEMP_BACKUP="$HOME/mcsm_server_bin_backup_$(date +%s)"
-        mv "$INSTALL_DIR/server_bin" "$TEMP_BACKUP"
-        echo "Copia guardada en: $TEMP_BACKUP"
+    # Check if server_bin exists with content (data to preserve)
+    if [ -d "$INSTALL_DIR/server_bin" ] && [ "$(ls -A "$INSTALL_DIR/server_bin" 2>/dev/null)" ]; then
+        echo -e "\e[32m[!] server_bin detectado con datos existentes.\e[0m"
+        echo -e "\e[32m[!] Modo actualización: Solo se actualizarán archivos de la aplicación.\e[0m"
+        PRESERVE_SERVER_BIN=true
         
-        echo "Eliminando instalación anterior..."
-        rm -rf "$INSTALL_DIR"
-        
-        # We will restore this after creating the directory
-        SHOULD_RESTORE="$TEMP_BACKUP"
+        # Remove only app files, keep server_bin intact
+        # Find and delete everything in INSTALL_DIR except server_bin
+        find "$INSTALL_DIR" -mindepth 1 -maxdepth 1 ! -name 'server_bin' -exec rm -rf {} +
+        echo "Archivos de aplicación anteriores eliminados. server_bin preservado."
     else
-        echo "Eliminando versión anterior..."
+        echo "Eliminando versión anterior (sin datos de servidor)..."
         rm -rf "$INSTALL_DIR"
     fi
 fi
@@ -107,11 +105,35 @@ mkdir -p "$INSTALL_DIR"
 # Check if we are running locally (installer next to main.py)
 if [ -f "main.py" ]; then
     echo "Detectada instalación local. Copiando archivos..."
-    cp -r ./* "$INSTALL_DIR/"
+    # Copy all except server_bin if preserving
+    if [ "$PRESERVE_SERVER_BIN" = true ]; then
+        # Copy everything except server_bin
+        for item in ./*; do
+            basename_item=$(basename "$item")
+            if [ "$basename_item" != "server_bin" ]; then
+                cp -r "$item" "$INSTALL_DIR/"
+            fi
+        done
+    else
+        cp -r ./* "$INSTALL_DIR/"
+    fi
 else
     echo "Instalación remota. Clonando repositorio..."
     if command -v git &> /dev/null; then
-        git clone "$REPO_URL" "$INSTALL_DIR"
+        if [ "$PRESERVE_SERVER_BIN" = true ]; then
+            # Clone to temp and copy without server_bin
+            TEMP_CLONE="/tmp/kubecontrol_clone_$$"
+            git clone "$REPO_URL" "$TEMP_CLONE"
+            for item in "$TEMP_CLONE"/*; do
+                basename_item=$(basename "$item")
+                if [ "$basename_item" != "server_bin" ]; then
+                    cp -r "$item" "$INSTALL_DIR/"
+                fi
+            done
+            rm -rf "$TEMP_CLONE"
+        else
+            git clone "$REPO_URL" "$INSTALL_DIR"
+        fi
     else
         echo "Error: Git no está instalado. En sistemas APT, debería haberse instalado automáticamente."
         echo "Por favor ejecuta manualmente: sudo apt-get install git"
@@ -119,15 +141,11 @@ else
     fi
 fi
 
-if [ ! -z "$SHOULD_RESTORE" ]; then
-    echo "Restaurando datos del servidor..."
-    # Ensure target is clean before restoring backup
-    if [ -d "$INSTALL_DIR/server_bin" ]; then
-        rm -rf "$INSTALL_DIR/server_bin"
-    fi
-    mv "$SHOULD_RESTORE" "$INSTALL_DIR/server_bin"
-    echo -e "\e[32mDatos restaurados correctamente.\e[0m"
+# No need to restore - server_bin was never moved!
+if [ "$PRESERVE_SERVER_BIN" = true ]; then
+    echo -e "\e[32m[OK] Datos del servidor preservados correctamente.\e[0m"
 fi
+
 
 # 4. Setup Virtual Environment or Libs
 cd "$INSTALL_DIR" || { echo "Error: No se pudo acceder a $INSTALL_DIR"; exit 1; }

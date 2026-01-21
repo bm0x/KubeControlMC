@@ -44,7 +44,9 @@ HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=customtkinter --hidden-import=ri
 HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=aiohttp --hidden-import=asyncio"
 
 # Build ADD_DATA arguments conditionally
-ADD_DATA="--add-data src:src --add-data server_bin:server_bin"
+# NOTE: server_bin is NOT bundled - it's created by postinst at runtime
+# This prevents overwriting user's server data during upgrades
+ADD_DATA="--add-data src:src"
 
 # Add assets if icon exists, otherwise create placeholder
 if [ ! -f "assets/icon.png" ]; then
@@ -153,19 +155,56 @@ StartupNotify=true
 StartupWMClass=kubecontrol-mc
 EOF
 
-# Postinst Script (Permissions + Icon Cache)
-cat <<EOF > "$BUILD_DIR/DEBIAN/postinst"
+# Preinst Script (Detect existing server data before upgrade)
+cat <<'EOF' > "$BUILD_DIR/DEBIAN/preinst"
 #!/bin/bash
 set -e
 
-# CRITICAL: Make application directory and all contents writable by any user
-# This allows the app to create/modify server files when run by normal users
-chmod -R 777 /opt/$APP_NAME
-chmod +x /opt/$APP_NAME/$APP_NAME
+APP_DIR="/opt/kubecontrol-mc"
+BACKUP_MARKER="/tmp/.kubecontrol_preserve_serverbin"
 
-# Create server_bin directory with full permissions
-mkdir -p /opt/$APP_NAME/server_bin
-chmod -R 777 /opt/$APP_NAME/server_bin
+case "$1" in
+    install|upgrade)
+        # Check if this is an upgrade with existing server data
+        if [ -d "$APP_DIR/server_bin" ] && [ "$(ls -A $APP_DIR/server_bin 2>/dev/null)" ]; then
+            echo "[KubeControl] Detectado server_bin existente con datos."
+            echo "[KubeControl] Los datos del servidor serán preservados durante la actualización."
+            touch "$BACKUP_MARKER"
+        fi
+        ;;
+esac
+
+exit 0
+EOF
+chmod 755 "$BUILD_DIR/DEBIAN/preinst"
+
+# Postinst Script (Permissions + Icon Cache + Smart server_bin handling)
+cat <<'EOF' > "$BUILD_DIR/DEBIAN/postinst"
+#!/bin/bash
+set -e
+
+APP_NAME="kubecontrol-mc"
+APP_DIR="/opt/$APP_NAME"
+BACKUP_MARKER="/tmp/.kubecontrol_preserve_serverbin"
+
+# Set base permissions
+chmod -R 755 "$APP_DIR"
+chmod +x "$APP_DIR/$APP_NAME"
+
+# Handle server_bin based on installation type
+if [ -f "$BACKUP_MARKER" ]; then
+    # UPGRADE: server_bin was preserved by preinst, just ensure permissions
+    echo "[KubeControl] Modo actualización: server_bin preservado."
+    if [ -d "$APP_DIR/server_bin" ]; then
+        chmod -R 777 "$APP_DIR/server_bin"
+    fi
+    rm -f "$BACKUP_MARKER"
+else
+    # FRESH INSTALL: create empty server_bin with proper permissions
+    echo "[KubeControl] Instalación nueva: creando server_bin..."
+    mkdir -p "$APP_DIR/server_bin"
+    chmod -R 777 "$APP_DIR/server_bin"
+fi
 
 # Update menu and icon caches
 update-desktop-database /usr/share/applications 2>/dev/null || true
@@ -180,8 +219,11 @@ fi
 
 echo "[KubeControl MC] Instalado correctamente."
 echo "Busca 'KubeControl' en tu menú de aplicaciones."
+
+exit 0
 EOF
 chmod 755 "$BUILD_DIR/DEBIAN/postinst"
+
 
 # 5. Build DEB
 echo "[5/5] Empaquetando .deb..."
