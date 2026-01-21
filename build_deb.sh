@@ -155,21 +155,17 @@ StartupNotify=true
 StartupWMClass=kubecontrol-mc
 EOF
 
-# Preinst Script (Detect existing server data before upgrade)
+# Preinst Script (Informational only - no backup needed)
 cat <<'EOF' > "$BUILD_DIR/DEBIAN/preinst"
 #!/bin/bash
 set -e
 
 APP_DIR="/opt/kubecontrol-mc"
-BACKUP_MARKER="/tmp/.kubecontrol_preserve_serverbin"
 
 case "$1" in
     install|upgrade)
-        # Check if this is an upgrade with existing server data
         if [ -d "$APP_DIR/server_bin" ] && [ "$(ls -A $APP_DIR/server_bin 2>/dev/null)" ]; then
-            echo "[KubeControl] Detectado server_bin existente con datos."
-            echo "[KubeControl] Los datos del servidor serán preservados durante la actualización."
-            touch "$BACKUP_MARKER"
+            echo "[KubeControl] server_bin detectado - NO será modificado."
         fi
         ;;
 esac
@@ -178,43 +174,32 @@ exit 0
 EOF
 chmod 755 "$BUILD_DIR/DEBIAN/preinst"
 
-# Postinst Script (Permissions + Icon Cache + Smart server_bin handling)
+# Postinst Script (Permissions + Icon Cache)
 cat <<'EOF' > "$BUILD_DIR/DEBIAN/postinst"
 #!/bin/bash
 set -e
 
 APP_NAME="kubecontrol-mc"
 APP_DIR="/opt/$APP_NAME"
-BACKUP_MARKER="/tmp/.kubecontrol_preserve_serverbin"
 
 # Set base permissions
 chmod -R 755 "$APP_DIR"
 chmod +x "$APP_DIR/$APP_NAME"
 
-# Handle server_bin based on installation type
-if [ -f "$BACKUP_MARKER" ]; then
-    # UPGRADE: server_bin was preserved by preinst, just ensure permissions
-    echo "[KubeControl] Modo actualización: server_bin preservado."
-    if [ -d "$APP_DIR/server_bin" ]; then
-        chmod -R 777 "$APP_DIR/server_bin"
-    fi
-    rm -f "$BACKUP_MARKER"
-else
-    # FRESH INSTALL: create empty server_bin with proper permissions
-    echo "[KubeControl] Instalación nueva: creando server_bin..."
+# Create server_bin ONLY if it doesn't exist (fresh install)
+if [ ! -d "$APP_DIR/server_bin" ]; then
+    echo "[KubeControl] Creando server_bin vacío..."
     mkdir -p "$APP_DIR/server_bin"
-    chmod -R 777 "$APP_DIR/server_bin"
 fi
+
+# Ensure server_bin has correct permissions
+chmod -R 777 "$APP_DIR/server_bin"
 
 # Update menu and icon caches
 update-desktop-database /usr/share/applications 2>/dev/null || true
 
-# Refresh icon cache (critical for icons to appear)
 if command -v gtk-update-icon-cache &> /dev/null; then
     gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
-fi
-if command -v update-icon-caches &> /dev/null; then
-    update-icon-caches /usr/share/icons/hicolor 2>/dev/null || true
 fi
 
 echo "[KubeControl MC] Instalado correctamente."

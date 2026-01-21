@@ -154,30 +154,28 @@ class ServerSanitizer:
     
     def is_plugin_config_dir(self, dirname: str) -> bool:
         """
-        Determine if a directory is likely a plugin configuration folder.
+        Determine if a directory should be moved to plugins/.
+        
+        Simple rule: Any folder that is NOT a valid server folder
+        (world, logs, plugins, etc.) is treated as a plugin config folder.
         
         Args:
             dirname: Name of the directory
             
         Returns:
-            True if it's likely a plugin config folder
+            True if it should be in plugins/, False if it's a valid server folder
         """
-        lower_name = dirname.lower()
-        
-        # Skip valid root directories
+        # If it's a valid server root directory, leave it alone
         if dirname in self.VALID_ROOT_DIRS:
             return False
         
-        # Check known plugin patterns
-        for pattern in self.PLUGIN_JAR_PATTERNS:
-            if pattern in lower_name:
-                return True
-        
-        return False
+        # Any other folder should be moved to plugins/
+        return True
     
     def scan(self) -> SanitizationReport:
         """
         Scan the server directory for structural issues.
+        Scans root AND subdirectories for misplaced plugin JARs.
         
         Returns:
             SanitizationReport with all issues found
@@ -196,7 +194,7 @@ class ServerSanitizer:
             item_path = os.path.join(self.server_dir, item)
             
             if os.path.isfile(item_path):
-                # Check JAR files
+                # Check JAR files in root
                 if item.endswith('.jar'):
                     if self.is_plugin_jar(item):
                         report.issues.append(SanitizationIssue(
@@ -205,25 +203,53 @@ class ServerSanitizer:
                             suggested_action=f"Move plugin JAR to plugins/",
                             destination=os.path.join(self.plugins_dir, item)
                         ))
-                elif item not in self.VALID_ROOT_FILES:
-                    # Unknown file in root - log but don't suggest moving
-                    logger.debug(f"Unknown file in root: {item}")
             
             elif os.path.isdir(item_path):
-                # Check if it's a misplaced plugin config directory
-                if item not in self.VALID_ROOT_DIRS and self.is_plugin_config_dir(item):
+                # Any folder that's not a valid server folder should be in plugins/
+                if self.is_plugin_config_dir(item):
                     report.issues.append(SanitizationIssue(
                         issue_type='misplaced_dir',
                         file_path=item_path,
-                        suggested_action=f"Move plugin config folder to plugins/",
+                        suggested_action=f"Move folder to plugins/",
                         destination=os.path.join(self.plugins_dir, item)
                     ))
+                # Also scan inside valid server directories for stray plugin JARs
+                elif item in self.VALID_ROOT_DIRS and item != 'plugins':
+                    self._scan_subdirectory(item_path, report)
         
         return report
+    
+    def _scan_subdirectory(self, dir_path: str, report: SanitizationReport):
+        """
+        Recursively scan a subdirectory for misplaced plugin JARs.
+        
+        Args:
+            dir_path: Path to the directory to scan
+            report: SanitizationReport to append issues to
+        """
+        try:
+            for item in os.listdir(dir_path):
+                item_path = os.path.join(dir_path, item)
+                
+                if os.path.isfile(item_path) and item.endswith('.jar'):
+                    # Any JAR in a server subdirectory (not plugins) should be checked
+                    if self.is_plugin_jar(item):
+                        report.issues.append(SanitizationIssue(
+                            issue_type='misplaced_jar_deep',
+                            file_path=item_path,
+                            suggested_action=f"Move plugin JAR to plugins/",
+                            destination=os.path.join(self.plugins_dir, item)
+                        ))
+                elif os.path.isdir(item_path):
+                    # Recurse into subdirectories
+                    self._scan_subdirectory(item_path, report)
+        except PermissionError:
+            pass
     
     def sanitize(self, dry_run: bool = True) -> SanitizationResult:
         """
         Fix structural issues by moving files to correct locations.
+        After moving, verifies and deletes any leftovers from source.
         
         Args:
             dry_run: If True, only report what would be done without making changes
@@ -251,10 +277,11 @@ class ServerSanitizer:
                 else:
                     # Check if destination already exists
                     if os.path.exists(issue.destination):
-                        # Backup existing file
-                        backup_name = f"{issue.destination}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                        shutil.move(issue.destination, backup_name)
-                        logger.info(f"Backed up existing: {issue.destination} -> {backup_name}")
+                        # Overwrite - delete existing first
+                        if os.path.isdir(issue.destination):
+                            shutil.rmtree(issue.destination)
+                        else:
+                            os.remove(issue.destination)
                     
                     # Move the file/directory
                     shutil.move(issue.file_path, issue.destination)
@@ -265,10 +292,18 @@ class ServerSanitizer:
                     })
                     logger.info(f"Moved: {issue.file_path} -> {issue.destination}")
                     
+                    # VERIFY: If source still exists, DELETE it
+                    if os.path.exists(issue.file_path):
+                        if os.path.isdir(issue.file_path):
+                            shutil.rmtree(issue.file_path)
+                        else:
+                            os.remove(issue.file_path)
+                        logger.info(f"Deleted leftover: {issue.file_path}")
+                    
             except Exception as e:
-                result.errors.append(f"Error moving {issue.file_path}: {str(e)}")
+                result.errors.append(f"Error processing {issue.file_path}: {str(e)}")
                 result.success = False
-                logger.error(f"Failed to move {issue.file_path}: {e}")
+                logger.error(f"Failed to process {issue.file_path}: {e}")
         
         return result
     
