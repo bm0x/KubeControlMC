@@ -300,6 +300,10 @@ class KubeControlGUI(ctk.CTk):
         ctk.CTkButton(tools_frame, text="📂 Plugins", command=lambda: self.open_folder(os.path.join(self.server_dir, "plugins")), **btn_cfg).pack(pady=3)
         ctk.CTkButton(tools_frame, text="📋 Copiar Logs", command=self.action_copy_logs, **btn_cfg).pack(pady=3)
 
+        ctk.CTkLabel(tools_frame, text="───── Plugins ─────", text_color="gray").pack(pady=5)
+        ctk.CTkButton(tools_frame, text="🔌 KubeControlPlugin", fg_color="#1971c2", command=self.action_install_kubecontrol, **btn_cfg).pack(pady=3)
+        ctk.CTkButton(tools_frame, text="🔄 Verificar Actualizaciones", fg_color="orange", hover_color="darkorange", command=self.action_check_plugin_updates, **btn_cfg).pack(pady=3)
+
         ctk.CTkLabel(tools_frame, text="───── App ─────", text_color="gray").pack(pady=5)
         ctk.CTkButton(tools_frame, text="🔄 Actualizar App", fg_color="teal", command=self.action_update_app, **btn_cfg).pack(pady=3)
 
@@ -510,7 +514,7 @@ class KubeControlGUI(ctk.CTk):
         """Show dialog to select and download a server JAR."""
         dialog = ctk.CTkToplevel(self)
         dialog.title("Instalar Servidor")
-        dialog.geometry("400x350")
+        dialog.geometry("450x420")
         dialog.transient(self)
         
         # Fix for empty dialog - wait for window to be ready
@@ -525,28 +529,64 @@ class KubeControlGUI(ctk.CTk):
         
         server_type = StringVar(value="paper")
         
-        ctk.CTkRadioButton(main_frame, text="Paper (Recomendado - Estable)", variable=server_type, value="paper").pack(anchor="w", pady=5)
-        ctk.CTkRadioButton(main_frame, text="Folia (Experimental - Multihilo)", variable=server_type, value="folia").pack(anchor="w", pady=5)
-        ctk.CTkRadioButton(main_frame, text="Velocity (Proxy)", variable=server_type, value="velocity").pack(anchor="w", pady=5)
+        radio_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        radio_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkRadioButton(radio_frame, text="Paper (Recomendado)", variable=server_type, value="paper").pack(anchor="w", pady=3)
+        ctk.CTkRadioButton(radio_frame, text="Folia (Multihilo)", variable=server_type, value="folia").pack(anchor="w", pady=3)
+        ctk.CTkRadioButton(radio_frame, text="Velocity (Proxy)", variable=server_type, value="velocity").pack(anchor="w", pady=3)
         
         ctk.CTkLabel(main_frame, text="Versión de Minecraft:").pack(pady=(20,5))
-        version_var = StringVar(value="1.21.4")
-        version_entry = ctk.CTkEntry(main_frame, textvariable=version_var, width=150)
-        version_entry.pack()
+        
+        # Dropdown for versions
+        version_var = StringVar(value="Cargando...")
+        version_dropdown = ctk.CTkComboBox(main_frame, variable=version_var, width=200, state="readonly")
+        version_dropdown.pack()
+        
+        # Loading indicator
+        loading_label = ctk.CTkLabel(main_frame, text="", text_color="gray", font=ctk.CTkFont(size=11))
+        loading_label.pack(pady=5)
+        
+        # Info label
+        ctk.CTkLabel(main_frame, text="💡 Se usará la build más reciente automáticamente", 
+                     text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=(10,0))
+        
+        def update_versions(*args):
+            stype = server_type.get()
+            loading_label.configure(text="Cargando versiones...")
+            version_dropdown.configure(state="disabled")
+            
+            def fetch():
+                versions = self.jar_manager.get_versions(stype)
+                if versions:
+                    versions = versions[::-1]  # Most recent first
+                    dialog.after(0, lambda: version_dropdown.configure(values=versions, state="readonly"))
+                    dialog.after(0, lambda: version_var.set(versions[0]))
+                    dialog.after(0, lambda: loading_label.configure(text=f"✓ {len(versions)} versiones disponibles"))
+                else:
+                    dialog.after(0, lambda: loading_label.configure(text="Error cargando versiones"))
+            
+            threading.Thread(target=fetch, daemon=True).start()
+        
+        # Trigger version load when server type changes
+        server_type.trace_add("write", update_versions)
+        dialog.after(200, update_versions)  # Initial load
         
         def do_install():
             stype = server_type.get()
             version = version_var.get()
+            if version == "Cargando..." or not version:
+                return
             dialog.destroy()
-            self.log_system(f"Descargando {stype} {version}...")
+            self.log_system(f"Descargando {stype} {version} (última build)...")
             
             def download_task():
                 try:
                     jar_path = self.jar_manager.download_jar(stype, version)
-                    self.after(0, lambda: self.log_system(f"JAR descargado: {os.path.basename(jar_path)}"))
+                    self.after(0, lambda: self.log_system(f"✅ JAR descargado: {os.path.basename(jar_path)}"))
                     self.current_jar = jar_path
                 except Exception as e:
-                    self.after(0, lambda: self.log_system(f"ERROR: {e}"))
+                    self.after(0, lambda: self.log_system(f"❌ ERROR: {e}"))
             
             threading.Thread(target=download_task, daemon=True).start()
         
@@ -891,6 +931,60 @@ class KubeControlGUI(ctk.CTk):
             asyncio.run_coroutine_threadsafe(self.server_controller.write(f"op {player}"), self.loop)
             self.log_console(f"OP granted: {player}")
 
+    def action_install_kubecontrol(self):
+        """Install or update KubeControlPlugin from GitHub Releases."""
+        self.log_system("Verificando KubeControlPlugin...")
+        
+        def install_task():
+            try:
+                # Check current version
+                remote_info = self.plugin_manager.get_remote_kubecontrol_info()
+                if not remote_info or not remote_info.get("download_url"):
+                    self.after(0, lambda: self.log_system("❌ No hay releases disponibles de KubeControlPlugin."))
+                    self.after(0, lambda: self.log_system("   Crea un tag en GitHub: git tag v1.0.0 && git push origin v1.0.0"))
+                    return
+                
+                self.after(0, lambda: self.log_system(f"Descargando KubeControlPlugin {remote_info['version']}..."))
+                path = self.plugin_manager.download_kubecontrol_plugin(force_update=True)
+                self.after(0, lambda: self.log_system(f"✅ KubeControlPlugin instalado: {os.path.basename(path)}"))
+                self.after(0, lambda: self.log_system("   Reinicia el servidor para activar el plugin."))
+            except Exception as e:
+                self.after(0, lambda: self.log_system(f"❌ Error: {e}"))
+        
+        threading.Thread(target=install_task, daemon=True).start()
+
+    def action_check_plugin_updates(self):
+        """Check for updates on all managed plugins."""
+        self.log_system("🔄 Verificando actualizaciones de plugins...")
+        
+        def check_task():
+            try:
+                updates = self.plugin_manager.check_for_updates()
+                
+                if not updates:
+                    self.after(0, lambda: self.log_system("No se pudo verificar actualizaciones."))
+                    return
+                
+                has_updates = False
+                for plugin, (needs_update, current, latest) in updates.items():
+                    if needs_update:
+                        has_updates = True
+                        self.after(0, lambda p=plugin, c=current, l=latest: 
+                            self.log_system(f"🆕 {p.capitalize()}: {c} → {l}"))
+                    else:
+                        self.after(0, lambda p=plugin, c=current: 
+                            self.log_system(f"✅ {p.capitalize()}: {c} (actualizado)"))
+                
+                if has_updates:
+                    self.after(0, lambda: self.log_system(""))
+                    self.after(0, lambda: self.log_system("Para actualizar, usa los botones de instalación correspondientes."))
+                else:
+                    self.after(0, lambda: self.log_system("Todos los plugins están actualizados."))
+                    
+            except Exception as e:
+                self.after(0, lambda: self.log_system(f"❌ Error verificando: {e}"))
+        
+        threading.Thread(target=check_task, daemon=True).start()
 
 if __name__ == "__main__":
     app = KubeControlGUI()
