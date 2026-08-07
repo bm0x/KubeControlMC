@@ -4,3 +4,4 @@ aiohttp
 psutil
 pyperclip
 customtkinter
+Pillow

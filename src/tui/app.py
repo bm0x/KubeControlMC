@@ -194,11 +194,18 @@ class MCSMApp(App):
                          lbl_java.styles.background = "green"
                          # Auto-copy Java IP
                          try:
-                             process = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
-                             process.communicate(public_addr.encode())
+                             import pyperclip
+                             pyperclip.copy(public_addr)
                              self.log_write_universal(f"[green]IP Java copiada: {public_addr}[/green]")
                          except:
-                             pass
+                             try:
+                                 tool = "pbcopy" if sys.platform == "darwin" else "xclip"
+                                 args = ["-selection", "clipboard"] if tool == "xclip" else []
+                                 process = subprocess.Popen([tool] + args, stdin=subprocess.PIPE)
+                                 process.communicate(public_addr.encode())
+                                 self.log_write_universal(f"[green]IP Java copiada: {public_addr}[/green]")
+                             except:
+                                 pass
                              
                      elif ":19132" in local_addr:
                          lbl_bedrock.update(f"Bedrock: [bold]{public_addr}[/bold]")
@@ -371,25 +378,41 @@ class MCSMApp(App):
             
             log_text = "\n".join(lines)
             
-            # Copy to clipboard using xclip or xsel
+            # Copy to clipboard (pyperclip handles macOS via pbcopy)
             try:
-                process = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
-                process.communicate(log_text.encode())
-            except FileNotFoundError:
+                import pyperclip
+                pyperclip.copy(log_text)
+            except Exception:
                 try:
-                    process = subprocess.Popen(["xsel", "--clipboard", "--input"], stdin=subprocess.PIPE)
+                    tool = "pbcopy" if sys.platform == "darwin" else "xclip"
+                    args = ["-selection", "clipboard"] if tool == "xclip" else []
+                    process = subprocess.Popen([tool] + args, stdin=subprocess.PIPE)
                     process.communicate(log_text.encode())
                 except FileNotFoundError:
-                    # Fallback: save to a temp file
-                    temp_file = "/tmp/kcmc_logs.txt"
-                    with open(temp_file, "w") as f:
-                        f.write(log_text)
-                    self.log_write(f"[yellow]Logs guardados en:[/yellow] {temp_file}")
-                    return
+                    if sys.platform != "darwin":
+                        try:
+                            process = subprocess.Popen(["xsel", "--clipboard", "--input"], stdin=subprocess.PIPE)
+                            process.communicate(log_text.encode())
+                        except FileNotFoundError:
+                            self._save_logs_to_temp(log_text)
+                            return
+                    else:
+                        self._save_logs_to_temp(log_text)
+                        return
             
             self.log_write("[green]Logs del servidor copiados al portapapeles.[/green]")
         except Exception as e:
             self.log_write(f"[red]Error copiando logs: {e}[/red]")
+
+    def _save_logs_to_temp(self, log_text: str):
+        """Fallback: save logs to a temp file when no clipboard tool is available."""
+        try:
+            temp_file = "/tmp/kcmc_logs.txt"
+            with open(temp_file, "w") as f:
+                f.write(log_text)
+            self.log_write(f"[yellow]Logs guardados en:[/yellow] {temp_file}")
+        except Exception as e:
+            self.log_write(f"[red]Error guardando logs: {e}[/red]")
 
     def update_app(self):
         """Update the application from GitHub and restart."""

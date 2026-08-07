@@ -4,7 +4,7 @@
 
 [![Build DEB Package](https://github.com/bm0x/KubeControlMC/actions/workflows/build_deb.yml/badge.svg)](https://github.com/bm0x/KubeControlMC/actions/workflows/build_deb.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux-orange.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10+-green.svg)]()
 
 **Gestión Profesional de Servidores Minecraft · Interfaz TUI Moderna · Túneles Automáticos**
@@ -15,7 +15,7 @@
 
 ## 📋 Descripción
 
-**KubeControlMC** es una herramienta de gestión completa para servidores de Minecraft, diseñada para simplificar la administración sin sacrificar el control avanzado. Disponible como aplicación nativa para Linux con interfaz TUI (Terminal User Interface) moderna.
+**KubeControlMC** es una herramienta de gestión completa para servidores de Minecraft, diseñada para simplificar la administración sin sacrificar el control avanzado. Disponible como aplicación nativa para **Linux y macOS** con interfaz TUI (Terminal User Interface) y GUI moderna.
 
 ### ¿Por qué KubeControlMC?
 
@@ -83,9 +83,27 @@ curl -sL https://raw.githubusercontent.com/bm0x/KubeControlMC/main/install.sh | 
 ```bash
 git clone https://github.com/bm0x/KubeControlMC.git
 cd KubeControlMC
-pip install -r requirements.txt
-python main.py
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+./launcher.sh            # GUI (modo gráfico)
+./launcher.sh --tui      # Interfaz de terminal
 ```
+
+### Opción D: macOS
+
+1. Instala **Python 3.10+** (desde [python.org](https://www.python.org/downloads/)) y **Java 17+** (`brew install --cask temurin@17`).
+2. Clona y configura el entorno:
+
+```bash
+git clone https://github.com/bm0x/KubeControlMC.git
+cd KubeControlMC
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+./launcher.sh            # Abre la GUI (ventana nativa)
+./launcher.sh --tui      # Modo terminal
+```
+
+> Nota sobre túneles: Playit.gg solo publica binarios oficiales para Linux/Windows. En macOS descarga la app desde https://playit.gg/download/macos o instálala en el PATH (`brew install playit` o `/usr/local/bin/playit`) y KubeControlMC la detectará automáticamente.
 
 ---
 
@@ -166,7 +184,7 @@ Para estadísticas avanzadas y sincronización con Discord, instala [KubeControl
 
 ## 📋 Requisitos
 
-- **Sistema Operativo**: Linux (Debian, Ubuntu, Elementary OS, Linux Mint)
+- **Sistema Operativo**: Linux (Debian, Ubuntu, Elementary OS, Linux Mint) y macOS (11+)
 - **Python**: 3.10+
 - **Java**: 17+ (para el servidor Minecraft)
 - **RAM**: Mínimo 2GB libres para el servidor
@@ -192,7 +210,7 @@ python -m pytest
 ## ❓ FAQ
 
 **¿Funciona en Windows?**
-> Actualmente es nativo para Linux. Versión Windows en desarrollo.
+> Actualmente es nativo para Linux y macOS. Versión Windows en desarrollo.
 
 **¿Dónde están mis mundos?**
 > En `/opt/kubecontrol-mc/server_bin/world/` (o `~/mcsm/server_bin/` si usaste el script).

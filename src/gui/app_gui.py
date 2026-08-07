@@ -50,7 +50,9 @@ class KubeControlGUI(ctk.CTk):
             try:
                 # Use standard PhotoImage for window icon, not CTkImage
                 img = Image.open(icon_path)
+                img = img.resize((64, 64))
                 photo = ImageTk.PhotoImage(img)
+                self._icon_photo = photo  # keep reference to avoid GC
                 self.iconphoto(True, photo)
                 self.wm_iconphoto(True, photo)
             except Exception as e:
@@ -847,10 +849,12 @@ class KubeControlGUI(ctk.CTk):
             pyperclip.copy(text)
             self.log_system("Logs copiados al portapapeles.")
         except:
-            # Fallback: use xclip
+            # Fallback: use platform clipboard tool (xclip/pbcopy/etc.)
             try:
                 text = self.console_text.get("1.0", END)
-                process = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
+                tool = "pbcopy" if sys.platform == "darwin" else "xclip"
+                args = ["-selection", "clipboard"] if tool == "xclip" else []
+                process = subprocess.Popen([tool] + args, stdin=subprocess.PIPE)
                 process.communicate(text.encode())
                 self.log_system("Logs copiados al portapapeles.")
             except:
@@ -868,6 +872,14 @@ class KubeControlGUI(ctk.CTk):
         if not os.path.exists(path):
             os.makedirs(path)
         try:
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.log_system(f"Abriendo: {path}")
+                return
+            if sys.platform == "win32":
+                subprocess.Popen(["explorer", path])
+                self.log_system(f"Abriendo: {path}")
+                return
             # Try common file managers first, then fallback to xdg-open
             file_managers = ["io.elementary.files", "pantheon-files", "nautilus", "dolphin", "thunar", "nemo", "pcmanfm", "caja"]
             opened = False

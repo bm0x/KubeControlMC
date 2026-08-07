@@ -1,16 +1,18 @@
 import os
 import re
+import platform
 import requests
 import subprocess
+import shutil
+import sys
 import threading
 import pty
 import select
 from typing import Callable, Optional
 
 class TunnelManager:
-    # GitHub releases URL for playit-agent
+    # GitHub releases URL for playit-agent (Linux binaries only; macOS has no official release)
     PLAYIT_URL = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64"
-    # Note: This is for x86_64 Linux. For ARM use playit-linux-aarch64
     
     # Regex to strip ANSI escape codes
     ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
@@ -175,20 +177,69 @@ class TunnelManager:
         
         if self.callback:
             self.callback("[cyan]Descargando agente Playit.gg...[/cyan]")
-        try:
-            with requests.get(self.PLAYIT_URL, stream=True, timeout=60) as r:
-                r.raise_for_status()
-                with open(self.agent_path, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-            os.chmod(self.agent_path, 0o755)
-            if self.callback:
-                self.callback("[green]Agente Playit.gg descargado.[/green]")
-            return self.agent_path
-        except Exception as e:
-            if self.callback:
-                self.callback(f"[red]Error descargando playit: {e}[/red]")
-            raise e
+        
+        # First try an existing playit binary already on the PATH or in common locations.
+        installed = self._find_playit_binary()
+        if installed:
+            try:
+                os.makedirs(os.path.dirname(self.agent_path), exist_ok=True)
+                shutil.copy(installed, self.agent_path)
+                os.chmod(self.agent_path, 0o755)
+                if self.callback:
+                    self.callback(f"[green]Agente Playit.gg detectado en: {installed}[/green]")
+                return self.agent_path
+            except Exception as e:
+                if self.callback:
+                    self.callback(f"[yellow]No se pudo copiar playit desde {installed}: {e}[/yellow]")
+        
+        # Linux/macOS auto-download: official binaries are only published for Linux.
+        if sys.platform.startswith("linux"):
+            machine = platform.machine().lower()
+            if machine in ("aarch64", "arm64"):
+                url = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-aarch64"
+            else:
+                url = self.PLAYIT_URL
+            try:
+                with requests.get(url, stream=True, timeout=60) as r:
+                    r.raise_for_status()
+                    with open(self.agent_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                os.chmod(self.agent_path, 0o755)
+                if self.callback:
+                    self.callback("[green]Agente Playit.gg descargado.[/green]")
+                return self.agent_path
+            except Exception as e:
+                if self.callback:
+                    self.callback(f"[red]Error descargando playit: {e}[/red]")
+                raise e
+        
+        # macOS and other platforms: no official GitHub binary.
+        if self.callback:
+            self.callback(
+                "[orange3]Playit.gg no publica binarios oficiales para macOS. "
+                "Descárgalo desde https://playit.gg/download/macos e instálalo en el "
+                "PATH (p.ej. /usr/local/bin/playit), o ejecuta: brew install playit[/orange3]"
+            )
+        raise FileNotFoundError("No se encontró el binario de playit para esta plataforma")
+
+    def _find_playit_binary(self):
+        """Locate an existing playit binary in common locations or on PATH."""
+        if self.callback:
+            self.callback("[dim]Buscando playit instalado en el sistema...[/dim]")
+        candidates = [
+            os.path.join(os.path.expanduser("~"), ".local", "bin", "playit"),
+            "/usr/local/bin/playit",
+            "/opt/homebrew/bin/playit",
+            "/usr/bin/playit",
+        ]
+        found = shutil.which("playit")
+        for c in candidates:
+            if os.path.isfile(c) and os.access(c, os.X_OK):
+                return c
+        if found and os.path.isfile(found) and os.access(found, os.X_OK):
+            return found
+        return None
 
     def _read_pty_output(self):
         """Thread that reads output from the PTY master."""
