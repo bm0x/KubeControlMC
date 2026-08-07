@@ -11,8 +11,14 @@ import select
 from typing import Callable, Optional
 
 class TunnelManager:
-    # GitHub releases URL for playit-agent (Linux binaries only; macOS has no official release)
-    PLAYIT_URL = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64"
+    # Pinned release that ships the SELF-CONTAINED playit agent (no IPC socket/daemon).
+    # Since playit became a `playitd` daemon + CLI service (sockets under /run/playit),
+    # the "latest" release no longer works when launched standalone by a normal user
+    # (error: "IPC Error: Failed to bind to socket: No such file or directory").
+    # v0.15.0 is still the build playit.gg links for manual Linux installs.
+    PLAYIT_LEGACY_TAG = "v0.15.0"
+    PLAYIT_AMD64_URL = f"https://github.com/playit-cloud/playit-agent/releases/download/{PLAYIT_LEGACY_TAG}/playit-linux-amd64"
+    PLAYIT_AARCH64_URL = f"https://github.com/playit-cloud/playit-agent/releases/download/{PLAYIT_LEGACY_TAG}/playit-linux-aarch64"
     
     # Regex to strip ANSI escape codes
     ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
@@ -171,34 +177,63 @@ class TunnelManager:
             if self.callback:
                 self.callback("[yellow]Túnel detenido.[/yellow]")
 
+    def _is_playitd(self, bin_path: str) -> bool:
+        """Detect the new 'playitd' daemon binary (needs systemd / IPC sockets).
+
+        The legacy self-contained agent answers 'version'/'playit --version' with a
+        plain version string, while the daemon identifies itself as 'playitd'.
+        """
+        try:
+            out = subprocess.run(
+                [bin_path, "--version"],
+                capture_output=True,
+                timeout=8
+            )
+            text = (out.stdout + out.stderr).decode("utf-8", errors="replace").lower()
+            return "playitd" in text
+        except Exception:
+            # Can't inspect the binary; treat unknown as valid.
+            return False
+
     def download_agent(self):
+        # If a cached binary exists, keep it as long as it's the self-contained
+        # (legacy) agent. The new playitd daemon MUST be replaced, otherwise it
+        # fails to bind its socket at /run/playit for non-root users.
         if os.path.exists(self.agent_path):
-            return self.agent_path
+            if not self._is_playitd(self.agent_path):
+                return self.agent_path
+            if self.callback:
+                self.callback(
+                    "[yellow]El binario guardado es 'playitd' (nuevo daemon de playit.gg) que "
+                    "requiere un socket en /run/playit y no funciona en modo standalone. "
+                    "Descargando el agente compatible...[/yellow]"
+                )
         
         if self.callback:
             self.callback("[cyan]Descargando agente Playit.gg...[/cyan]")
         
-        # First try an existing playit binary already on the PATH or in common locations.
-        installed = self._find_playit_binary()
-        if installed:
-            try:
-                os.makedirs(os.path.dirname(self.agent_path), exist_ok=True)
-                shutil.copy(installed, self.agent_path)
-                os.chmod(self.agent_path, 0o755)
-                if self.callback:
-                    self.callback(f"[green]Agente Playit.gg detectado en: {installed}[/green]")
-                return self.agent_path
-            except Exception as e:
-                if self.callback:
-                    self.callback(f"[yellow]No se pudo copiar playit desde {installed}: {e}[/yellow]")
+        # macOS only: prefer an already-installed playit binary on the system.
+        if sys.platform == "darwin":
+            installed = self._find_playit_binary()
+            if installed:
+                try:
+                    os.makedirs(os.path.dirname(self.agent_path), exist_ok=True)
+                    shutil.copy(installed, self.agent_path)
+                    os.chmod(self.agent_path, 0o755)
+                    if self.callback:
+                        self.callback(f"[green]Agente Playit.gg detectado en: {installed}[/green]")
+                    return self.agent_path
+                except Exception as e:
+                    if self.callback:
+                        self.callback(f"[yellow]No se pudo copiar playit desde {installed}: {e}[/yellow]")
         
-        # Linux/macOS auto-download: official binaries are only published for Linux.
+        # Linux: download the self-contained agent (pinned version for non-service installs).
         if sys.platform.startswith("linux"):
             machine = platform.machine().lower()
             if machine in ("aarch64", "arm64"):
-                url = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-aarch64"
+                url = self.PLAYIT_AARCH64_URL
             else:
-                url = self.PLAYIT_URL
+                url = self.PLAYIT_AMD64_URL
             try:
                 with requests.get(url, stream=True, timeout=60) as r:
                     r.raise_for_status()
