@@ -105,6 +105,33 @@ python3 -m venv .venv
 
 > Nota sobre túneles: Playit.gg solo publica binarios oficiales para Linux/Windows. En macOS descarga la app desde https://playit.gg/download/macos o instálala en el PATH (`brew install playit` o `/usr/local/bin/playit`) y KubeControlMC la detectará automáticamente.
 
+### Opción E: Raspberry Pi 3B+ (Ultra-Optimizado) 🫐
+
+Diseñado para la Pi 3B+ (1 GB RAM): el **núcleo es 100% stdlib** (sin `requests`/`psutil`/`aiohttp`/`pyperclip`) y se detecta automáticamente poca memoria:
+
+```bash
+git clone https://github.com/bm0x/KubeControlMC.git
+cd KubeControlMC
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-pi.txt   # solo Textual (~30MB)
+./launcher.sh --tui --pi                        # TUI en modo Pi
+```
+
+O instala el paquete **`kubecontrol-mc_*_arm64.deb`** desde [Releases](https://github.com/bm0x/KubeControlMC/releases) (publicado automáticamente por las Actions) y lanza `kcmc --tui --pi`.
+
+Cuando se detecta modo Pi automáticamente:
+
+| Ajuste | Valor en Pi |
+|--------|-------------|
+| Selector RAM | 256M – 1G (nunca más de 1G), por defecto la recomendada |
+| JVM | `-XX:+UseSerialGC`, `-XX:MaxMetaspaceSize=128M`, sin `DisableExplicitGC` |
+| Consola TUI | `max_lines=300`, sin `ReprHighlighter` (ahorra CPU) |
+| Sincronización | Cada 15s (menos carga) |
+| `⚡ Optimizar` | Perfil Pi: view-distance=3, sim-distance=2, spawn limits reducidos |
+| Monitor de RAM | Alerta al 85%, lee `/proc` directamente |
+
+> **Nota**: con ~905 MB de RAM, usa **PaperMC** y el botón **⚡ Optimizar** antes de iniciar. Con Geyser/Floodgate activos la RAM del servidor sube considerablemente.
+
 ---
 
 ## 🎮 Uso
@@ -187,7 +214,7 @@ Para estadísticas avanzadas y sincronización con Discord, instala [KubeControl
 - **Sistema Operativo**: Linux (Debian, Ubuntu, Elementary OS, Linux Mint) y macOS (11+)
 - **Python**: 3.10+
 - **Java**: 17+ (para el servidor Minecraft)
-- **RAM**: Mínimo 2GB libres para el servidor
+- **RAM**: Mínimo 2GB libres para el servidor (en Raspberry Pi 3B+ usa el modo Pi: 512M recomendado)
 
 ---
 

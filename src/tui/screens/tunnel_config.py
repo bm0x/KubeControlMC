@@ -2,10 +2,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, RichLog, Label, Static
 from textual.containers import Vertical, Horizontal, Container
 from textual.app import ComposeResult
-try:
-    import pyperclip
-except ImportError:
-    pyperclip = None
+
+from src.core import clipboard
 
 class TunnelConfigScreen(ModalScreen):
     CSS = """
@@ -133,8 +131,7 @@ class TunnelConfigScreen(ModalScreen):
             
         elif btn_id == "btn-copy-link":
             if self.claim_url:
-                try:
-                    pyperclip.copy(self.claim_url)
+                if clipboard.copy_text(self.claim_url):
                     self.log_write("[green]Link copiado al portapapeles.[/green]")
-                except:
-                    self.log_write("[red]No se pudo copiar (falta xclip/xsel). Copialo manualmente.[/red]")
+                else:
+                    self.log_write("[red]No se pudo copiar (falta wl-copy/xclip/xsel). Copialo manualmente.[/red]")

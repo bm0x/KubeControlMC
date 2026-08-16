@@ -1,0 +1,5 @@
+# KubeControlMC - dependencias mínimas para Raspberry Pi (modo TUI)
+# El núcleo es 100% stdlib. Solo se necesita Textual para la interfaz.
+# Uso:  ./launcher.sh --tui --pi
+
+textual>=0.40.0

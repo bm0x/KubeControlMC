@@ -1,11 +1,12 @@
-import requests
 import os
+
+from src.core import http_client
+
 
 class JarManager:
     # PaperMC sunset the v2 API; the downloads service now lives here:
     # https://docs.papermc.io/misc/downloads-service/
     BASE_URL = "https://fill.papermc.io/v3/projects"
-    USER_AGENT = "KubeControlMC/1.0 (https://github.com/bm0x/KubeControlMC)"
 
     def __init__(self, download_dir="server_bin"):
         self.download_dir = download_dir
@@ -13,13 +14,7 @@ class JarManager:
             os.makedirs(self.download_dir)
 
     def _get_json(self, path: str):
-        resp = requests.get(
-            f"{self.BASE_URL}{path}",
-            headers={"Accept": "application/json", "User-Agent": self.USER_AGENT},
-            timeout=30
-        )
-        resp.raise_for_status()
-        return resp.json()
+        return http_client.get_json(f"{self.BASE_URL}{path}")
 
     def get_current_jar(self) -> str:
         """Find the first/latest JAR file in the download directory."""
@@ -54,7 +49,7 @@ class JarManager:
         except (ValueError, AttributeError):
             return [0]
 
-    def get_versions(self, project: str) -> list[str]:
+    def get_versions(self, project: str) -> list:
         """Get stable release versions for a project (paper, folia, velocity)."""
         try:
             data = self._get_json(f"/{project}")
@@ -76,7 +71,7 @@ class JarManager:
             return versions[-1]
         return None
 
-    def get_builds(self, project: str, version: str) -> list[dict]:
+    def get_builds(self, project: str, version: str) -> list:
         try:
             data = self._get_json(f"/{project}/versions/{version}/builds")
             if isinstance(data, list):
@@ -132,14 +127,4 @@ class JarManager:
             raise ValueError(f"No download URL found for {project} {version} build {build}")
 
         print(f"Downloading {jar_name}...")
-        try:
-            with requests.get(download_url, stream=True, headers={"User-Agent": self.USER_AGENT}) as r:
-                r.raise_for_status()
-                with open(output_path, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-            return output_path
-        except Exception as e:
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            raise e
+        return http_client.download(download_url, output_path)

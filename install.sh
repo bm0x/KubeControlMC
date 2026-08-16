@@ -134,7 +134,13 @@ echo "Directorio actual: $(pwd)"
 
 # Find requirements.txt
 REQ_FILE=""
-if [ -f "$INSTALL_DIR/requirements.txt" ]; then
+TOTAL_RAM_MB=$(( $(grep -s MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0) / 1024 ))
+
+if [ "$TOTAL_RAM_MB" -gt 0 ] && [ "$TOTAL_RAM_MB" -lt 1536 ]; then
+    echo -e "\e[33mRaspberry Pi / poca RAM detectada ($TOTAL_RAM_MB MB).\e[0m"
+    echo -e "\e[33mUsando dependencias mínimas (modo TUI, sin GUI).\e[0m"
+    REQ_FILE="$INSTALL_DIR/requirements-pi.txt"
+elif [ -f "$INSTALL_DIR/requirements.txt" ]; then
     REQ_FILE="$INSTALL_DIR/requirements.txt"
 elif [ -f "requirements.txt" ]; then
     REQ_FILE="$(pwd)/requirements.txt"
@@ -146,15 +152,10 @@ fi
 
 if [ -z "$REQ_FILE" ] || [ ! -f "$REQ_FILE" ]; then
     echo -e "\e[33m[WARN] No se encontró requirements.txt. Creando uno mínimo...\e[0m"
-    cat > "$INSTALL_DIR/requirements.txt" << 'REQS'
+    cat > "$INSTALL_DIR/requirements-pi.txt" << 'REQS'
 textual>=0.40.0
-requests
-aiohttp
-aiohttp
-psutil
-pyperclip
 REQS
-    REQ_FILE="$INSTALL_DIR/requirements.txt"
+    REQ_FILE="$INSTALL_DIR/requirements-pi.txt"
 fi
 
 echo "Usando: $REQ_FILE"
@@ -179,6 +180,21 @@ python3 main.py "\$@"
 EOF
 
 chmod +x "$LAUNCHER"
+
+# On low-RAM devices, default to TUI mode if no args are given
+if [ "$TOTAL_RAM_MB" -gt 0 ] && [ "$TOTAL_RAM_MB" -lt 1536 ]; then
+    echo -e "\e[33m[Pi] Modo TUI por defecto. Usa 'kcmc --gui' para forzar GUI.\e[0m"
+    cat <<EOF > "$LAUNCHER"
+#!/bin/bash
+cd "$INSTALL_DIR"
+if [ \$# -eq 0 ]; then
+    python3 main.py --tui --pi
+else
+    python3 main.py "\$@"
+fi
+EOF
+    chmod +x "$LAUNCHER"
+fi
 
 # --- 4.5. Desktop Entry Setup ---
 echo "Configurando acceso directo de escritorio..."

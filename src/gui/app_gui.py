@@ -5,9 +5,19 @@ import threading
 import asyncio
 import subprocess
 import re
-from tkinter import StringVar, END, messagebox
+import time
+from tkinter import StringVar, END
 from tkinter import ttk
-from PIL import Image, ImageTk
+
+from src.core.server_controller import ServerController
+from src.core.jar_manager import JarManager
+from src.core.tunnel_manager import TunnelManager
+from src.core.player_manager import PlayerManager
+from src.core.plugin_manager import PluginManager
+from src.core.config_manager import ConfigManager
+from src.core.pi_profile import (is_pi_mode, get_ram_options, get_default_ram,
+                                 get_java_args, get_optimization_preset)
+from src.core import clipboard
 
 # Ensure sys.path includes our libs if running standalone
 base_check = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -42,12 +52,18 @@ class KubeControlGUI(ctk.CTk):
         self.title("KubeControl MC")
         self.geometry("1200x750")
         
+        # Modo Raspberry Pi (RAM limitada, polling lento)
+        self.pi_mode = is_pi_mode()
+        self.poll_interval = 3000 if self.pi_mode else 1000
+        self._player_sig = None
+        
         # WM Class set via __init__ className
         
-        # Load Icon
+        # Load Icon (opcional: sin Pillow se omite el icono)
         icon_path = os.path.join(self.base_dir, "assets", "icon.png")
         if os.path.exists(icon_path):
             try:
+                from PIL import Image, ImageTk
                 # Use standard PhotoImage for window icon, not CTkImage
                 img = Image.open(icon_path)
                 img = img.resize((64, 64))
@@ -123,8 +139,8 @@ class KubeControlGUI(ctk.CTk):
 
         # RAM Select
         ctk.CTkLabel(self.sidebar, text="Memoria RAM:", anchor="w").grid(row=4, column=0, padx=20, pady=(15, 0))
-        self.ram_var = StringVar(value="4G")
-        self.ram_menu = ctk.CTkOptionMenu(self.sidebar, values=["2G", "4G", "6G", "8G", "12G", "16G", "24G", "32G"], variable=self.ram_var)
+        self.ram_var = StringVar(value=get_default_ram())
+        self.ram_menu = ctk.CTkOptionMenu(self.sidebar, values=get_ram_options(), variable=self.ram_var)
         self.ram_menu.grid(row=5, column=0, padx=20, pady=5)
 
         # Control Buttons
@@ -363,18 +379,18 @@ class KubeControlGUI(ctk.CTk):
             except:
                 pass
 
-    # ========== STATUS CHECK ==========
-    # ========== STATUS CHECK ==========
+# ========== STATUS CHECK ==========
     def _check_status_periodic(self):
-        import time
-        
+        # Polling adaptado: 3s en modo Pi (menos CPU), 1s en escritorio
+        interval = self.poll_interval
+
         # If server is starting, show loading status and skip stopped check
         if self.is_starting:
             self.status_label.configure(text="⏳ INICIANDO...", text_color="orange")
             self.btn_start.configure(state="disabled")
             self.btn_stop.configure(state="disabled")
             self.btn_restart.configure(state="disabled")
-            self.after(1000, self._check_status_periodic)
+            self.after(interval, self._check_status_periodic)
             return
 
         if self.server_controller and self.server_controller.process:
@@ -437,16 +453,21 @@ class KubeControlGUI(ctk.CTk):
             self.current_jar = jar
             
             # Extract MC version from JAR name (e.g., paper-1.21.4-123.jar -> 1.21.4)
-            import re
             match = re.search(r'-(\d+\.\d+\.?\d*)-', os.path.basename(jar))
             if match:
                 self.mc_version = match.group(1)
                 self.lbl_mc_version.configure(text=f"📦 Versión MC: {self.mc_version}")
         
-        self.after(1000, self._check_status_periodic)
+        self.after(interval, self._check_status_periodic)
 
     def _update_player_table(self, players):
         """Update the player treeview with current data."""
+        # Rebuild solo si la lista cambió (evita redibujado innecesario)
+        sig = tuple(sorted((n, p.get("rank", "User")) for n, p in players.items()))
+        if sig == self._player_sig:
+            return
+        self._player_sig = sig
+
         # Clear existing
         for item in self.player_tree.get_children():
             self.player_tree.delete(item)
@@ -489,8 +510,8 @@ class KubeControlGUI(ctk.CTk):
         ram = self.ram_var.get()
         self.log_console(f"Iniciando servidor con {ram} de RAM...")
         
-        # Create server controller
-        self.server_controller = ServerController(self.current_jar, java_args=[f"-Xms{ram}", f"-Xmx{ram}"])
+        # Create server controller (en modo Pi: SerialGC + límites de metaspace)
+        self.server_controller = ServerController(self.current_jar, java_args=get_java_args(ram))
         
         # Set callback to redirect output to console
         def on_server_output(msg):
@@ -786,8 +807,11 @@ class KubeControlGUI(ctk.CTk):
 
     def action_optimize(self):
         """Apply optimization settings to server."""
-        self.log_system("Aplicando optimizaciones...")
-        changes = ConfigManager.apply_aggressive_optimization(self.server_dir)
+        preset = get_optimization_preset()
+        self.log_system(f"Aplicando perfil de optimización: {preset}...")
+        changes = (ConfigManager.apply_pi_optimization(self.server_dir)
+                   if preset == "pi"
+                   else ConfigManager.apply_aggressive_optimization(self.server_dir))
         for change in changes:
             self.log_system(f"  • {change}")
         self.log_system("Optimización completada. Reinicia el servidor para aplicar.")
@@ -843,22 +867,11 @@ class KubeControlGUI(ctk.CTk):
         ctk.CTkLabel(main_frame, text="Nota: Requiere reiniciar el servidor\npara activar los plugins.", text_color="gray", font=ctk.CTkFont(size=11)).pack()
 
     def action_copy_logs(self):
-        try:
-            import pyperclip
-            text = self.console_text.get("1.0", END)
-            pyperclip.copy(text)
+        text = self.console_text.get("1.0", END)
+        if clipboard.copy_text(text):
             self.log_system("Logs copiados al portapapeles.")
-        except:
-            # Fallback: use platform clipboard tool (xclip/pbcopy/etc.)
-            try:
-                text = self.console_text.get("1.0", END)
-                tool = "pbcopy" if sys.platform == "darwin" else "xclip"
-                args = ["-selection", "clipboard"] if tool == "xclip" else []
-                process = subprocess.Popen([tool] + args, stdin=subprocess.PIPE)
-                process.communicate(text.encode())
-                self.log_system("Logs copiados al portapapeles.")
-            except:
-                self.log_system("Error copiando logs.")
+        else:
+            self.log_system("Error copiando logs (instala wl-copy, xclip o xsel).")
 
     def action_update_app(self):
         if self.server_controller and self.server_controller.process and self.server_controller.process.returncode is None:

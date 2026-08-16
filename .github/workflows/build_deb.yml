@@ -8,6 +8,14 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publicar release con este tag (ej: v1.0.1). Si no existe, se crea automáticamente. Vacío = solo artifact"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -28,10 +36,26 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         pip install pyinstaller pillow customtkinter
 
-    - name: Build DEB Package
+    - name: Build DEB Package (amd64)
       run: |
         chmod +x build_deb.sh
         ./build_deb.sh
+      env:
+        KCMC_VERSION: ${{ (github.ref_type == 'tag' && github.ref_name) || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag) || '1.0.0' }}
+
+    - name: Set up QEMU (aarch64)
+      if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
+      uses: docker/setup-qemu-action@v3
+
+    - name: Build DEB Package (aarch64 - Raspberry Pi)
+      if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
+      run: |
+        docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src \
+          -e KCMC_VERSION="${{ (github.ref_type == 'tag' && github.ref_name) || github.event.inputs.release_tag }}" \
+          python:3.12-slim bash -c "
+            apt-get update -qq && apt-get install -y -qq dpkg-dev patchelf
+            ./build_deb.sh
+          "
 
     - name: Upload DEB Artifact
       uses: actions/upload-artifact@v4
@@ -41,12 +65,15 @@ jobs:
         retention-days: 30
 
     - name: Create GitHub Release
-      if: startsWith(github.ref, 'refs/tags/')
+      if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
       uses: softprops/action-gh-release@v2
       with:
         files: kubecontrol-mc_*.deb
+        tag_name: ${{ (github.ref_type == 'tag' && github.ref_name) || github.event.inputs.release_tag }}
+        name: ${{ (github.ref_type == 'tag' && github.ref_name) || github.event.inputs.release_tag }}
         generate_release_notes: true
         draft: false
         prerelease: false
+        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

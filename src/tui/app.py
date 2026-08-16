@@ -15,6 +15,9 @@ from src.core.player_manager import PlayerManager
 from src.core.config_manager import ConfigManager
 from src.core.resource_watcher import ResourceWatcher
 from src.core.server_sanitizer import ServerSanitizer
+from src.core.pi_profile import (is_pi_mode, get_ram_options, get_default_ram,
+                                 get_java_args, get_optimization_preset)
+from src.core import clipboard
 from src.tui.screens.install import InstallScreen
 from src.tui.screens.properties_editor import PropertiesEditorScreen
 from src.tui.screens.tunnel_config import TunnelConfigScreen
@@ -32,6 +35,12 @@ class MCSMApp(App):
         # Use absolute path relative to this script's location
         self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.server_dir = os.path.join(self.base_dir, "server_bin")
+        
+        # Modo Raspberry Pi: limita RAM, logs y trabajo del UI
+        self.pi_mode = is_pi_mode()
+        self.ram_options = get_ram_options()
+        self.default_ram = get_default_ram()
+        self.sync_interval = 15.0 if self.pi_mode else 10.0
         
         self.jar_manager = JarManager(download_dir=self.server_dir)
         self.plugin_manager = PluginManager(plugins_dir=os.path.join(self.server_dir, "plugins"))
@@ -69,8 +78,8 @@ class MCSMApp(App):
                         Label("Panel de Control", classes="section-title"),
                         Horizontal(
                              Select.from_values(
-                                ["2G", "4G", "6G", "8G", "12G", "16G", "24G", "32G"],
-                                value="4G",
+                                self.ram_options,
+                                value=self.default_ram,
                                 id="ram-select",
                                 allow_blank=False
                             ),
@@ -99,10 +108,11 @@ class MCSMApp(App):
                     id="dashboard-container"
                 )
 
-            # --- TAB 2: CONSOLA SERVIDOR ---
+            # --- TAB 2: CONSOLA SERVidor ---
             with TabPane("Consola Server", id="tab-console"):
                 yield Vertical(
-                    RichLog(id="server-log", markup=True, highlight=True, auto_scroll=True),
+                    RichLog(id="server-log", markup=True, highlight=True, auto_scroll=True,
+                            max_lines=300 if self.pi_mode else 1000),
                     Input(placeholder="Comando de servidor (ej: /op, /stop)...", id="console-input", disabled=True),
                     id="server-console-area"
                 )
@@ -193,19 +203,8 @@ class MCSMApp(App):
                          lbl_java.update(f"Java: [bold]{public_addr}[/bold] (Copiado)")
                          lbl_java.styles.background = "green"
                          # Auto-copy Java IP
-                         try:
-                             import pyperclip
-                             pyperclip.copy(public_addr)
+                         if clipboard.copy_text(public_addr):
                              self.log_write_universal(f"[green]IP Java copiada: {public_addr}[/green]")
-                         except:
-                             try:
-                                 tool = "pbcopy" if sys.platform == "darwin" else "xclip"
-                                 args = ["-selection", "clipboard"] if tool == "xclip" else []
-                                 process = subprocess.Popen([tool] + args, stdin=subprocess.PIPE)
-                                 process.communicate(public_addr.encode())
-                                 self.log_write_universal(f"[green]IP Java copiada: {public_addr}[/green]")
-                             except:
-                                 pass
                              
                      elif ":19132" in local_addr:
                          lbl_bedrock.update(f"Bedrock: [bold]{public_addr}[/bold]")
@@ -378,29 +377,11 @@ class MCSMApp(App):
             
             log_text = "\n".join(lines)
             
-            # Copy to clipboard (pyperclip handles macOS via pbcopy)
-            try:
-                import pyperclip
-                pyperclip.copy(log_text)
-            except Exception:
-                try:
-                    tool = "pbcopy" if sys.platform == "darwin" else "xclip"
-                    args = ["-selection", "clipboard"] if tool == "xclip" else []
-                    process = subprocess.Popen([tool] + args, stdin=subprocess.PIPE)
-                    process.communicate(log_text.encode())
-                except FileNotFoundError:
-                    if sys.platform != "darwin":
-                        try:
-                            process = subprocess.Popen(["xsel", "--clipboard", "--input"], stdin=subprocess.PIPE)
-                            process.communicate(log_text.encode())
-                        except FileNotFoundError:
-                            self._save_logs_to_temp(log_text)
-                            return
-                    else:
-                        self._save_logs_to_temp(log_text)
-                        return
-            
-            self.log_write("[green]Logs del servidor copiados al portapapeles.[/green]")
+            # Copy to clipboard (stdlib: pbcopy/xclip/xsel/wl-copy)
+            if clipboard.copy_text(log_text):
+                self.log_write("[green]Logs del servidor copiados al portapapeles.[/green]")
+            else:
+                self._save_logs_to_temp(log_text)
         except Exception as e:
             self.log_write(f"[red]Error copiando logs: {e}[/red]")
 
@@ -500,9 +481,15 @@ class MCSMApp(App):
         self.log_write("[dim]Escribe 'whitelist off' cuando estés listo.[/dim]")
 
     def optimize_server_config(self):
-        self.log_write("[cyan]Aplicando optimizaciones agresivas (Low-End PC)...[/cyan]")
+        preset = get_optimization_preset()
+        if preset == "pi":
+            self.log_write("[cyan]Aplicando perfil Raspberry Pi (RAM/CPU bajos)...[/cyan]")
+        else:
+            self.log_write("[cyan]Aplicando optimizaciones agresivas (Low-End PC)...[/cyan]")
         try:
-            changes = ConfigManager.apply_aggressive_optimization(self.server_dir)
+            changes = (ConfigManager.apply_pi_optimization(self.server_dir)
+                       if preset == "pi"
+                       else ConfigManager.apply_aggressive_optimization(self.server_dir))
             if changes:
                 for change in changes:
                     self.log_write(f"[green]✓ {change}[/green]")
@@ -654,8 +641,9 @@ class MCSMApp(App):
             log = self.query_one("#server-log", RichLog)
             # Use Text.from_ansi to render safe text (safe brackets) + ANSI colors
             text_obj = Text.from_ansi(message)
-            # Apply highlighting (restore "formats" like bold numbers/IPs that user missed)
-            ReprHighlighter().highlight(text_obj)
+            # Apply highlighting only fuera de modo Pi (ReprHighlighter es caro en CPU)
+            if not self.pi_mode:
+                ReprHighlighter().highlight(text_obj)
             log.write(text_obj)
             
             # Parse for Players
@@ -703,6 +691,8 @@ class MCSMApp(App):
     def on_mount(self) -> None:
         self.log_write("[bold green]Bienvenido a KubeControlMC[/]")
         self.log_write("[italic]Gestor de Servidores Minecraft Avanzado[/italic]")
+        if self.pi_mode:
+            self.log_write("[bold orange]Modo Raspberry Pi: RAM limitada, SerialGC y perfil de optimización Pi[/bold orange]")
         
         # Init Player Table
         try:
@@ -881,14 +871,14 @@ class MCSMApp(App):
         
         # Get RAM Value
         ram_val = ram_select.value
-        # If blank for some reason, default to 4G
+        # If blank for some reason, default to recommended
         if not ram_val:
-            ram_val = "4G"
+            ram_val = self.default_ram
             
         self.query_one("#status-label").update(f"Estado: EJECUTANDO ({ram_val} RAM)")
 
-        # Prepare arguments
-        java_args = [f"-Xms{ram_val}", f"-Xmx{ram_val}"]
+        # Prepare arguments (en modo Pi: SerialGC + límites de metaspace)
+        java_args = get_java_args(ram_val)
         self.log_write(f"[dim]Iniciando servidor con memoria: {ram_val}[/dim]") # System log
         
         # Initialize Controller
@@ -907,8 +897,8 @@ class MCSMApp(App):
         if self.server_controller.process:
             self.resource_watcher.start(self.server_controller.process.pid)
             
-        # Start Sync Timer (Every 10s)
-        self.set_interval(10.0, self.sync_player_list)
+        # Start Sync Timer (cada 10s en escritorio, 15s en Pi para reducir CPU)
+        self.set_interval(self.sync_interval, self.sync_player_list)
 
     async def sync_player_list(self):
         """Syncs server state (JSON + Command)."""

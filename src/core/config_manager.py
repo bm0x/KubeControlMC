@@ -1,4 +1,5 @@
 import os
+import re
 
 class ConfigManager:
     @staticmethod
@@ -128,5 +129,106 @@ class ConfigManager:
                     changes.append("spigot.yml: Increased merge-radius for items/exp")
             except Exception:
                 pass
+
+        return changes
+
+    @staticmethod
+    def apply_pi_optimization(server_dir: str) -> list:
+        """
+        Perfil extremo para Raspberry Pi / hardware de bajos recursos.
+        Prioriza RAM y CPU: mundo pequeño, poca distancia de simulación,
+        límites de spawn reducidos y guardado de chunks no sincrónico.
+        """
+        changes = []
+
+        # 1. server.properties — valores conservadores para 1 GB de RAM
+        try:
+            for key, value in {
+                "view-distance": "3",
+                "simulation-distance": "2",
+                "network-compression-threshold": "512",
+                "sync-chunk-writes": "false",
+                "max-players": "10",
+                "entity-broadcast-range-percentage": "50",
+                "spawn-protection": "0",
+                "max-world-size": "4096",
+                "enable-monitoring": "false",
+                "allow-flight": "true",
+            }.items():
+                ConfigManager.set_property(server_dir, key, value)
+            changes.append("server.properties: perfil Raspberry Pi (view=3, sim=2, max-players=10)")
+        except Exception as e:
+            changes.append(f"Error optimizando server.properties: {e}")
+
+        # 2. bukkit.yml — límites de spawn reducidos
+        bukkit_path = os.path.join(server_dir, "bukkit.yml")
+        if os.path.exists(bukkit_path):
+            try:
+                with open(bukkit_path, 'r') as f:
+                    content = f.read()
+                new_content = content
+                replacements = (
+                    ("monsters: 70", "monsters: 20"),
+                    ("monsters: 30", "monsters: 20"),
+                    ("animals: 10", "animals: 4"),
+                    ("water-animals: 5", "water-animals: 2"),
+                    ("ambient: 15", "ambient: 5"),
+                )
+                for old, new in replacements:
+                    if old in new_content:
+                        new_content = new_content.replace(old, new)
+                if new_content != content:
+                    with open(bukkit_path, 'w') as f:
+                        f.write(new_content)
+                    changes.append("bukkit.yml: spawn limits reducidos para Pi")
+            except Exception as e:
+                changes.append(f"Error optimizando bukkit.yml: {e}")
+
+        # 3. spigot.yml — merge radius y activation range (regex por línea exacta)
+        spigot_path = os.path.join(server_dir, "spigot.yml")
+        if os.path.exists(spigot_path):
+            try:
+                with open(spigot_path, 'r') as f:
+                    content = f.read()
+                new_content = content
+                spigot_repl = (
+                    (r"(?m)^\s*item: 2\.5$", "item: 4.0"),
+                    (r"(?m)^\s*exp: 3\.0$", "exp: 6.0"),
+                    (r"(?m)^\s*animals: 32$", "animals: 8"),
+                    (r"(?m)^\s*monsters: 32$", "monsters: 14"),
+                    (r"(?m)^\s*raiders: 48$", "raiders: 20"),
+                    (r"(?m)^\s*misc: 16$", "misc: 8"),
+                    (r"(?m)^\s*water: 16$", "water: 8"),
+                    (r"(?m)^\s*villagers: 32$", "villagers: 12"),
+                )
+                for pattern, repl in spigot_repl:
+                    new_content = re.sub(pattern, repl, new_content)
+                if new_content != content:
+                    with open(spigot_path, 'w') as f:
+                        f.write(new_content)
+                    changes.append("spigot.yml: activation range y merge radius ajustados")
+            except Exception as e:
+                changes.append(f"Error optimizando spigot.yml: {e}")
+
+        # 4. paper.yml — guardado de chunks perezoso y descarga diferida
+        paper_path = os.path.join(server_dir, "paper.yml")
+        if os.path.exists(paper_path):
+            try:
+                with open(paper_path, 'r') as f:
+                    content = f.read()
+                new_content = content
+                paper_repl = (
+                    (r"(?m)^\s*max-auto-save-chunks: \d+$", "max-auto-save-chunks: 5"),
+                    (r"(?m)^\s*delay-chunk-unloads-by: \d+$", "delay-chunk-unloads-by: 20000"),
+                    (r"(?m)^\s*use-alternative-luck-formula: (true|false)$", "use-alternative-luck-formula: false"),
+                )
+                for pattern, repl in paper_repl:
+                    new_content = re.sub(pattern, repl, new_content)
+                if new_content != content:
+                    with open(paper_path, 'w') as f:
+                        f.write(new_content)
+                    changes.append("paper.yml: auto-save 5 chunks, descarga diferida 20s")
+            except Exception as e:
+                changes.append(f"Error optimizando paper.yml: {e}")
 
         return changes

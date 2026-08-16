@@ -1,10 +1,12 @@
 import asyncio
-import subprocess
 import os
 from typing import Callable, Optional
 
+from src.core import pi_profile
+
+
 class ServerController:
-    def __init__(self, jar_path: str, java_args: list[str] = None):
+    def __init__(self, jar_path: str, java_args: list = None):
         self.jar_path = jar_path
         # Get the directory containing the JAR file - this is where we'll run the server
         self.working_dir = os.path.dirname(os.path.abspath(jar_path))
@@ -15,51 +17,41 @@ class ServerController:
     def set_callback(self, callback: Callable[[str], None]):
         self.output_callback = callback
 
+    @staticmethod
+    def _find_java_pids(jar_name: str) -> list:
+        """Find Java PIDs running our JAR by scanning /proc (stdlib only).
+
+        No depende de lsof/pgrep (no instalados por defecto en Debian mínimo).
+        """
+        pids = []
+        try:
+            for entry in os.listdir("/proc"):
+                if not entry.isdigit():
+                    continue
+                try:
+                    with open(f"/proc/{entry}/cmdline", "rb") as f:
+                        cmdline = f.read().replace(b"\0", b" ").decode("utf-8", errors="replace")
+                    if "java" in cmdline and jar_name in cmdline and "nogui" in cmdline:
+                        pids.append(int(entry))
+                except OSError:
+                    continue
+        except OSError:
+            pass
+        return pids
+
     def cleanup_zombie_processes(self):
-        """Kill any existing Java processes using the same server directory and remove session.lock."""
+        """Kill any existing Java processes using the same server JAR and remove session.lock."""
         session_lock = os.path.join(self.working_dir, "world", "session.lock")
-        
-        # Try to find and kill Java processes running in our working directory
-        try:
-            # Use lsof to find processes with session.lock open
-            result = subprocess.run(
-                ["lsof", "-t", session_lock],
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                pids = result.stdout.strip().split('\n')
-                for pid in pids:
-                    try:
-                        if self.output_callback:
-                            self.output_callback(f"[yellow]Terminando proceso zombie (PID: {pid})...[/yellow]")
-                        os.kill(int(pid), 9)  # SIGKILL
-                    except (ProcessLookupError, ValueError):
-                        pass
-        except FileNotFoundError:
-            # lsof not available, try alternative approach
-            pass
-        
-        # Also try to find Java processes with our JAR in their command line
-        try:
-            jar_name = os.path.basename(self.jar_path)
-            result = subprocess.run(
-                ["pgrep", "-f", jar_name],
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                pids = result.stdout.strip().split('\n')
-                for pid in pids:
-                    try:
-                        if self.output_callback:
-                            self.output_callback(f"[yellow]Terminando servidor anterior (PID: {pid})...[/yellow]")
-                        os.kill(int(pid), 9)
-                    except (ProcessLookupError, ValueError):
-                        pass
-        except FileNotFoundError:
-            pass
-        
+        jar_name = os.path.basename(self.jar_path)
+
+        for pid in self._find_java_pids(jar_name):
+            try:
+                if self.output_callback:
+                    self.output_callback(f"[yellow]Terminando servidor anterior (PID: {pid})...[/yellow]")
+                os.kill(int(pid), 9)  # SIGKILL
+            except (ProcessLookupError, ValueError, PermissionError):
+                pass
+
         # Remove session.lock if exists
         if os.path.exists(session_lock):
             try:
@@ -79,8 +71,14 @@ class ServerController:
         # Clean up any zombie processes before starting
         self.cleanup_zombie_processes()
 
-        cmd = ["java"] + self.java_args + ["-jar", self.jar_path, "nogui"]
-        
+        # En modo Pi añade flags JVM optimizados si no vienen ya incluidos
+        args = list(self.java_args)
+        if pi_profile.is_pi_mode() and not any("-XX:+UseSerialGC" in a for a in args):
+            xmx = next((a.split("=")[1] for a in args if a.startswith("-Xmx")), "512M")
+            args = pi_profile.get_java_args(xmx)
+
+        cmd = ["java"] + args + ["-jar", self.jar_path, "nogui"]
+
         try:
             self.process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -89,14 +87,14 @@ class ServerController:
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.working_dir  # Run server in the JAR's directory
             )
-            
+
             # Start monitoring output
             asyncio.create_task(self._read_stream(self.process.stdout))
             asyncio.create_task(self._read_stream(self.process.stderr, is_error=True))
-            
+
             if self.output_callback:
                 self.output_callback(f"Server started with PID: {self.process.pid}")
-                
+
         except Exception as e:
             if self.output_callback:
                 self.output_callback(f"Failed to start server: {e}")
@@ -110,7 +108,7 @@ class ServerController:
             if self.output_callback:
                 prefix = "[ERR] " if is_error else ""
                 self.output_callback(f"{prefix}{decoded}")
-    
+
     async def write(self, command: str):
         if self.process and self.process.stdin:
             self.process.stdin.write(f"{command}\n".encode())

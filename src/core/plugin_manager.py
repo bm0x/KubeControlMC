@@ -1,7 +1,8 @@
-import requests
 import os
 import json
 from typing import Optional, Dict, Tuple
+
+from src.core import http_client
 
 class PluginManager:
     # APIs
@@ -51,44 +52,38 @@ class PluginManager:
     def get_remote_geyser_info(self) -> Optional[Dict]:
         """Get latest Geyser version info from API."""
         try:
-            resp = requests.get(self.GEYSER_API, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
+            data = http_client.get_json(self.GEYSER_API, timeout=10)
             return {
                 "version": data.get("version"),
                 "build": data.get("build"),
                 "sha256": data.get("downloads", {}).get("spigot", {}).get("sha256")
             }
-        except:
+        except Exception:
             return None
     
     def get_remote_floodgate_info(self) -> Optional[Dict]:
         """Get latest Floodgate version info from API."""
         try:
-            resp = requests.get(self.FLOODGATE_API, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
+            data = http_client.get_json(self.FLOODGATE_API, timeout=10)
             return {
                 "version": data.get("version"),
                 "build": data.get("build"),
                 "sha256": data.get("downloads", {}).get("spigot", {}).get("sha256")
             }
-        except:
+        except Exception:
             return None
     
     def get_remote_kubecontrol_info(self) -> Optional[Dict]:
         """Get latest KubeControlPlugin version info from GitHub."""
         try:
-            resp = requests.get(self.KUBECONTROL_API, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
+            data = http_client.get_json(self.KUBECONTROL_API, timeout=10)
             jar_asset = next((a for a in data.get("assets", []) if a["name"].endswith(".jar")), None)
             return {
                 "version": data.get("tag_name"),
                 "download_url": jar_asset["browser_download_url"] if jar_asset else None,
                 "filename": jar_asset["name"] if jar_asset else None
             }
-        except:
+        except Exception:
             return None
     
     def check_for_updates(self) -> Dict[str, Tuple[bool, str, str]]:
@@ -259,14 +254,4 @@ class PluginManager:
     def _download(self, url: str, filename: str) -> str:
         output_path = os.path.join(self.plugins_dir, filename)
         print(f"Descargando {filename}...")
-        try:
-            with requests.get(url, stream=True, timeout=60) as r:
-                r.raise_for_status()
-                with open(output_path, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-            return output_path
-        except Exception as e:
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            raise e
+        return http_client.download(url, output_path)

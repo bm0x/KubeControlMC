@@ -1,7 +1,6 @@
 import os
 import re
 import platform
-import requests
 import subprocess
 import shutil
 import sys
@@ -9,6 +8,9 @@ import threading
 import pty
 import select
 from typing import Callable, Optional
+
+from src.core import http_client
+
 
 class TunnelManager:
     # Pinned release that ships the SELF-CONTAINED playit agent (no IPC socket/daemon).
@@ -19,7 +21,7 @@ class TunnelManager:
     PLAYIT_LEGACY_TAG = "v0.15.0"
     PLAYIT_AMD64_URL = f"https://github.com/playit-cloud/playit-agent/releases/download/{PLAYIT_LEGACY_TAG}/playit-linux-amd64"
     PLAYIT_AARCH64_URL = f"https://github.com/playit-cloud/playit-agent/releases/download/{PLAYIT_LEGACY_TAG}/playit-linux-aarch64"
-    
+
     # Regex to strip ANSI escape codes
     ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
@@ -36,7 +38,7 @@ class TunnelManager:
 
     def set_callback(self, callback):
         self.callback = callback
-        
+
     def set_crash_callback(self, callback):
         self._on_crash = callback
 
@@ -44,43 +46,42 @@ class TunnelManager:
         """Remove ANSI escape codes from text."""
         return self.ANSI_ESCAPE.sub('', text)
 
-    # ... (download_agent remains same) ...
-
     def _read_pty_output(self):
         """Thread that reads output from the PTY master."""
         buffer = ""
         try:
             while not self._stop_reading and self._master_fd is not None:
-                # ... (loop content same) ...
                 try:
                     ready, _, _ = select.select([self._master_fd], [], [], 0.1)
                     if not ready:
-                        # ...
+                        # If we have data in buffer containing a URL but no newline arrived for a while,
+                        # imply a line break to ensure it gets shown (e.g. prompts)
                         if buffer and ("https://" in buffer or "claim" in buffer.lower()):
-                             buffer += "\n"
+                            buffer += "\n"
                         else:
                             continue
-                    
+
                     if ready:
-                        data = os.read(self._master_fd, 1024)
+                        data = os.read(self._master_fd, 1024)  # Read smaller chunks
                         if not data:
                             break
-                        
+
                         decoded = data.decode('utf-8', errors='replace')
+                        # Normalize carriage returns to newlines to handle progress bars/prompts
                         decoded = decoded.replace('\r\n', '\n').replace('\r', '\n')
                         buffer += decoded
-                    
-                    # ... (line processing same) ...
+
                     # Process complete lines
                     while '\n' in buffer:
                         line, buffer = buffer.split('\n', 1)
                         line = self._strip_ansi(line).strip()
-                        
+
                         if not line:
                             continue
-                        
+
+                        # Escape brackets to prevent Rich markup errors
                         safe_line = line.replace("[", "\\[").replace("]", "\\]")
-                        
+
                         if self.callback:
                             if "https://" in line or "claim" in line.lower():
                                 self.callback(f"[bold magenta][TUNNEL] {safe_line}[/]")
@@ -93,20 +94,21 @@ class TunnelManager:
                 except OSError:
                     # PTY closed
                     break
-                    
+
         except Exception as e:
             if self.callback and not self._stop_reading:
                 self.callback(f"[red][TUNNEL ERROR] {e}[/red]")
         finally:
+            # Notify crash handler only on unexpected exits (not intentional stops)
             if not self._intentional_stop and self._on_crash and not self._stop_reading:
                 self._on_crash()
 
     async def start(self):
         self._intentional_stop = False
-        
+
         if self.callback:
             self.callback(f"[dim]Verificando agente en: {self.agent_path}[/dim]")
-        
+
         if not os.path.exists(self.agent_path):
             try:
                 self.download_agent()
@@ -117,16 +119,16 @@ class TunnelManager:
 
         if self.callback:
             self.callback("[cyan]Ejecutando Playit.gg con PTY...[/cyan]")
-        
+
         try:
             # Create a pseudo-terminal to capture ALL output (including direct TTY writes)
             master_fd, slave_fd = pty.openpty()
             self._master_fd = master_fd
-            
-            # Set TERM to dumb or xterm to avoid complex cursor movements if possible
+
+            # Set TERM to xterm to avoid complex cursor movements if possible
             env = os.environ.copy()
             env["TERM"] = "xterm"
-            
+
             self.process = subprocess.Popen(
                 [self.agent_path],
                 stdin=slave_fd,
@@ -135,18 +137,18 @@ class TunnelManager:
                 close_fds=True,
                 env=env
             )
-            
+
             # Close slave in parent process
             os.close(slave_fd)
-            
+
             if self.callback:
                 self.callback(f"[green]Túnel iniciado con PID: {self.process.pid}[/green]")
-            
+
             # Start reader thread
             self._stop_reading = False
             self._reader_thread = threading.Thread(target=self._read_pty_output, daemon=True)
             self._reader_thread.start()
-        
+
         except Exception as e:
             if self.callback:
                 self.callback(f"[red]Error al iniciar túnel: {e}[/red]")
@@ -154,14 +156,14 @@ class TunnelManager:
     async def stop(self):
         self._intentional_stop = True
         self._stop_reading = True
-        
+
         if self._master_fd is not None:
             try:
                 os.close(self._master_fd)
-            except:
+            except OSError:
                 pass
             self._master_fd = None
-        
+
         if self.process:
             try:
                 self.process.terminate()
@@ -171,7 +173,7 @@ class TunnelManager:
             except Exception:
                 try:
                     self.process.kill()
-                except:
+                except Exception:
                     pass
             self.process = None
             if self.callback:
@@ -208,10 +210,10 @@ class TunnelManager:
                     "requiere un socket en /run/playit y no funciona en modo standalone. "
                     "Descargando el agente compatible...[/yellow]"
                 )
-        
+
         if self.callback:
             self.callback("[cyan]Descargando agente Playit.gg...[/cyan]")
-        
+
         # macOS only: prefer an already-installed playit binary on the system.
         if sys.platform == "darwin":
             installed = self._find_playit_binary()
@@ -226,7 +228,7 @@ class TunnelManager:
                 except Exception as e:
                     if self.callback:
                         self.callback(f"[yellow]No se pudo copiar playit desde {installed}: {e}[/yellow]")
-        
+
         # Linux: download the self-contained agent (pinned version for non-service installs).
         if sys.platform.startswith("linux"):
             machine = platform.machine().lower()
@@ -235,11 +237,7 @@ class TunnelManager:
             else:
                 url = self.PLAYIT_AMD64_URL
             try:
-                with requests.get(url, stream=True, timeout=60) as r:
-                    r.raise_for_status()
-                    with open(self.agent_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            f.write(chunk)
+                http_client.download(url, self.agent_path, timeout=120)
                 os.chmod(self.agent_path, 0o755)
                 if self.callback:
                     self.callback("[green]Agente Playit.gg descargado.[/green]")
@@ -248,7 +246,7 @@ class TunnelManager:
                 if self.callback:
                     self.callback(f"[red]Error descargando playit: {e}[/red]")
                 raise e
-        
+
         # macOS and other platforms: no official GitHub binary.
         if self.callback:
             self.callback(
@@ -276,135 +274,6 @@ class TunnelManager:
             return found
         return None
 
-    def _read_pty_output(self):
-        """Thread that reads output from the PTY master."""
-        buffer = ""
-        try:
-            while not self._stop_reading and self._master_fd is not None:
-                # Use select to avoid blocking forever
-                try:
-                    ready, _, _ = select.select([self._master_fd], [], [], 0.1)
-                    if not ready:
-                        # If we have data in buffer containing a URL but no newline arrived for a while,
-                        # imply a line break to ensure it gets shown (e.g. prompts)
-                        if buffer and ("https://" in buffer or "claim" in buffer.lower()):
-                             buffer += "\n"
-                        else:
-                            continue
-                    
-                    if ready:
-                        data = os.read(self._master_fd, 1024) # Read smaller chunks
-                        if not data:
-                            break
-                        
-                        decoded = data.decode('utf-8', errors='replace')
-                        # Normalize carriage returns to newlines to handle progress bars/prompts
-                        decoded = decoded.replace('\r\n', '\n').replace('\r', '\n')
-                        buffer += decoded
-                    
-                    # Process complete lines
-                    while '\n' in buffer:
-                        line, buffer = buffer.split('\n', 1)
-                        line = self._strip_ansi(line).strip()
-                        
-                        if not line:
-                            continue
-                        
-                        # Escape brackets to prevent Rich markup errors
-                        # We only want our own tags ([dim], [red], etc) to be parsed
-                        safe_line = line.replace("[", "\\[").replace("]", "\\]")
-                        
-                        if self.callback:
-                            if "https://" in line or "claim" in line.lower():
-                                # pass raw line to extract URL later, checking generic conditions
-                                self.callback(f"[bold magenta][TUNNEL] {safe_line}[/]")
-                            elif "error" in line.lower() or "failed" in line.lower():
-                                self.callback(f"[red][TUNNEL] {safe_line}[/red]")
-                            elif "started" in line.lower() or "ready" in line.lower() or "running" in line.lower():
-                                self.callback(f"[green][TUNNEL] {safe_line}[/green]")
-                            else:
-                                self.callback(f"[dim][TUNNEL] {safe_line}[/dim]")
-                except OSError:
-                    # PTY closed
-                    break
-                    
-        except Exception as e:
-            if self.callback and not self._stop_reading:
-                self.callback(f"[red][TUNNEL ERROR] {e}[/red]")
-
-    async def start(self):
-        if self.callback:
-            self.callback(f"[dim]Verificando agente en: {self.agent_path}[/dim]")
-        
-        if not os.path.exists(self.agent_path):
-            try:
-                self.download_agent()
-            except Exception as e:
-                if self.callback:
-                    self.callback(f"[red]Error descargando agente: {e}[/red]")
-                return
-
-        if self.callback:
-            self.callback("[cyan]Ejecutando Playit.gg con PTY...[/cyan]")
-        
-        try:
-            # Create a pseudo-terminal to capture ALL output (including direct TTY writes)
-            master_fd, slave_fd = pty.openpty()
-            self._master_fd = master_fd
-            
-            # Set TERM to dumb or xterm to avoid complex cursor movements if possible
-            env = os.environ.copy()
-            env["TERM"] = "xterm"
-            
-            self.process = subprocess.Popen(
-                [self.agent_path],
-                stdin=slave_fd,
-                stdout=slave_fd,
-                stderr=slave_fd,
-                close_fds=True,
-                env=env
-            )
-            
-            # Close slave in parent process
-            os.close(slave_fd)
-            
-            if self.callback:
-                self.callback(f"[green]Túnel iniciado con PID: {self.process.pid}[/green]")
-            
-            # Start reader thread
-            self._stop_reading = False
-            self._reader_thread = threading.Thread(target=self._read_pty_output, daemon=True)
-            self._reader_thread.start()
-        
-        except Exception as e:
-            if self.callback:
-                self.callback(f"[red]Error al iniciar túnel: {e}[/red]")
-
-    async def stop(self):
-        self._stop_reading = True
-        
-        if self._master_fd is not None:
-            try:
-                os.close(self._master_fd)
-            except:
-                pass
-            self._master_fd = None
-        
-        if self.process:
-            try:
-                self.process.terminate()
-                self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-            except Exception:
-                try:
-                    self.process.kill()
-                except:
-                    pass
-            self.process = None
-            if self.callback:
-                self.callback("[yellow]Túnel detenido.[/yellow]")
-
     def reset_config(self):
         """Performs a full reset: Deletes config AND the binary to force update."""
         files_to_remove = [
@@ -412,20 +281,20 @@ class TunnelManager:
             "playit.toml",
             self.agent_path  # Delete the binary itself
         ]
-        
+
         deleted_any = False
         for f in files_to_remove:
             if os.path.exists(f):
                 try:
                     os.remove(f)
                     deleted_any = True
-                except:
+                except OSError:
                     pass
-            
+
         if self.callback:
             if deleted_any:
                 self.callback("[green]Agente y configuración eliminados. Se descargará la última versión.[/green]")
             else:
                 self.callback("[dim]Nada que limpiar (Agente/Config no encontrados).[/dim]")
-            
+
         return deleted_any

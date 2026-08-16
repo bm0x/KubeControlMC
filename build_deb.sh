@@ -2,25 +2,28 @@
 set -e
 
 APP_NAME="kubecontrol-mc"
-VERSION="1.0.0"
+# Versión desde KCMC_VERSION (ej: v1.0.1 -> 1.0.1), o 1.0.0 por defecto
+VERSION="${KCMC_VERSION:-1.0.0}"
+VERSION="${VERSION#v}"
 ARCH="amd64"
 BUILD_DIR="build_deb"
 DIST_DIR="dist"
 
 echo "=== Iniciando Construcción de Paquete DEB ($APP_NAME v$VERSION) ==="
 
-# 1. Setup Virtual Environment
+# 1. Setup Virtual Environment (uno por arquitectura para evitar conflictos amd64/arm64)
 echo "[1/5] Configurando entorno virtual..."
-if [ ! -d ".venv" ]; then
+VENV_DIR=".venv_${ARCH}"
+if [ ! -d "$VENV_DIR" ]; then
     echo "Creando venv..."
-    python3 -m venv .venv
+    python3 -m venv "$VENV_DIR"
 fi
-source .venv/bin/activate
+source "$VENV_DIR/bin/activate"
 
 # Install Dependencies in VENV
 echo "Instalando dependencias en venv..."
 pip install --upgrade pip
-pip install pyinstaller textual rich customtkinter pillow aiohttp psutil requests
+pip install pyinstaller textual rich customtkinter pillow
 
 # Verify libraries
 python3 -c "import PIL.ImageTk; print('PIL.ImageTk found')" || echo "WARNING: PIL.ImageTk not found in venv!"
@@ -41,7 +44,7 @@ mkdir -p assets
 # Hidden imports common for TUI/GUI
 HIDDEN_IMPORTS="--hidden-import=textual --hidden-import=textual.app --hidden-import=textual.widgets"
 HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=customtkinter --hidden-import=rich --hidden-import=PIL --hidden-import=PIL.ImageTk"
-HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=aiohttp --hidden-import=asyncio"
+HIDDEN_IMPORTS="$HIDDEN_IMPORTS --hidden-import=asyncio"
 
 # Build ADD_DATA arguments conditionally
 # NOTE: server_bin is NOT bundled - it's created by postinst at runtime

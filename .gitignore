@@ -22,5 +22,6 @@ dist/
 build_deb/
 build_rpm/
 build_win/
+.venv_*/
 kubecontrol-mc.*
 kubecontrol-mc_*.deb
