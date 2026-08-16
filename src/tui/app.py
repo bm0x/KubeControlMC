@@ -16,7 +16,7 @@ from src.core.config_manager import ConfigManager
 from src.core.resource_watcher import ResourceWatcher
 from src.core.server_sanitizer import ServerSanitizer
 from src.core.pi_profile import (is_pi_mode, get_ram_options, get_default_ram,
-                                 get_java_args, get_optimization_preset)
+                                 get_java_args, get_optimization_preset, get_diagnostics)
 from src.core import clipboard
 from src.tui.screens.install import InstallScreen
 from src.tui.screens.properties_editor import PropertiesEditorScreen
@@ -692,7 +692,9 @@ class MCSMApp(App):
         self.log_write("[bold green]Bienvenido a KubeControlMC[/]")
         self.log_write("[italic]Gestor de Servidores Minecraft Avanzado[/italic]")
         if self.pi_mode:
-            self.log_write("[bold orange]Modo Raspberry Pi: RAM limitada, SerialGC y perfil de optimización Pi[/bold orange]")
+            for line in get_diagnostics():
+                self.log_write(line)
+            self.log_write("[dim]El servidor usará SerialGC y el preset de optimización Pi[/dim]")
         
         # Init Player Table
         try:

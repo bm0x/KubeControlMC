@@ -16,7 +16,7 @@ from src.core.player_manager import PlayerManager
 from src.core.plugin_manager import PluginManager
 from src.core.config_manager import ConfigManager
 from src.core.pi_profile import (is_pi_mode, get_ram_options, get_default_ram,
-                                 get_java_args, get_optimization_preset)
+                                 get_java_args, get_optimization_preset, get_diagnostics)
 from src.core import clipboard
 
 # Ensure sys.path includes our libs if running standalone
@@ -102,6 +102,11 @@ class KubeControlGUI(ctk.CTk):
 
         self._setup_sidebar()
         self._setup_main_area()
+        
+        # Diagnóstico de hardware al abrir (modo Pi / ARM)
+        for line in get_diagnostics():
+            self.log_system(line.replace("[bold orange]", "").replace("[/bold orange]", "")
+                            .replace("[dim]", "").replace("[/dim]", ""))
         
         # Initial status check loop
         self._check_status_periodic()
