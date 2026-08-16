@@ -5,7 +5,8 @@ APP_NAME="kubecontrol-mc"
 # Versión desde KCMC_VERSION (ej: v1.0.1 -> 1.0.1), o 1.0.0 por defecto
 VERSION="${KCMC_VERSION:-1.0.0}"
 VERSION="${VERSION#v}"
-ARCH="amd64"
+# Arquitectura desde KCMC_ARCH (amd64|arm64), o amd64 por defecto
+ARCH="${KCMC_ARCH:-amd64}"
 BUILD_DIR="build_deb"
 DIST_DIR="dist"
 
