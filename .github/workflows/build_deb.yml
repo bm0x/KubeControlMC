@@ -44,14 +44,14 @@ jobs:
         KCMC_VERSION: ${{ (github.ref_type == 'tag' && github.ref_name) || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag) || '1.0.0' }}
 
     - name: Set up QEMU (aarch64)
-      if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
+      if: github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
       uses: docker/setup-qemu-action@v3
 
     - name: Build DEB Package (aarch64 - Raspberry Pi)
-      if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
+      if: github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
       run: |
         docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src \
-          -e KCMC_VERSION="${{ (github.ref_type == 'tag' && github.ref_name) || github.event.inputs.release_tag }}" \
+          -e KCMC_VERSION="${{ (github.ref_type == 'tag' && github.ref_name) || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag) || '1.0.0' }}" \
           python:3.12-slim bash -c "
             apt-get update -qq && apt-get install -y -qq dpkg-dev patchelf
             ./build_deb.sh
@@ -64,7 +64,31 @@ jobs:
         path: kubecontrol-mc_*.deb
         retention-days: 30
 
-    - name: Create GitHub Release
+    - name: Update nightly tag
+      if: github.ref == 'refs/heads/main'
+      run: |
+        git tag -f nightly
+        git push origin nightly -f || true
+
+    - name: Create GitHub Release (Nightly - main)
+      if: github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: kubecontrol-mc_*.deb
+        tag_name: nightly
+        name: Nightly (main)
+        body: |
+          Build automático desde la rama main (amd64 + arm64).
+
+          Para versiones estables: crea un tag v* (git tag v1.0.1 && git push origin v1.0.1)
+          o usa el botón Run workflow con el input release_tag.
+        prerelease: true
+        draft: false
+        fail_on_unmatched_files: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create GitHub Release (Tag)
       if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
       uses: softprops/action-gh-release@v2
       with:

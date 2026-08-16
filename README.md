@@ -117,7 +117,12 @@ python3 -m venv .venv
 ./launcher.sh --tui --pi                        # TUI en modo Pi
 ```
 
-O instala el paquete **`kubecontrol-mc_*_arm64.deb`** desde [Releases](https://github.com/bm0x/KubeControlMC/releases) (publicado automáticamente por las Actions) y lanza `kcmc --tui --pi`.
+O instala el paquete **`kubecontrol-mc_*_arm64.deb`** desde [Releases](https://github.com/bm0x/KubeControlMC/releases):
+
+- **Nightly (main)** — prerelease actualizada en cada push a `main` (amd64 + arm64)
+- **Tags `v*`** — releases estables (`git tag v1.0.1 && git push origin v1.0.1`)
+
+Y lanza `kcmc --tui --pi`.
 
 Cuando se detecta modo Pi automáticamente:
 
