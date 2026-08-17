@@ -1,6 +1,9 @@
 import sys
 import os
 
+APP_NAME = "KubeControlMC"
+APP_VERSION = "1.0.0"
+
 # Add local libs directory to path for portability/restricted envs
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "libs"))
 
@@ -26,6 +29,10 @@ def _configure_pi_mode():
     return False
 
 def main():
+    if "--version" in sys.argv or "-v" in sys.argv:
+        print(f"{APP_NAME} {APP_VERSION}")
+        return
+
     pi_mode = _configure_pi_mode()
     force_gui = "--gui" in sys.argv
     if force_gui:
@@ -34,8 +41,8 @@ def main():
     # Default to GUI unless --tui/--cli, or Pi mode (headless: TUI)
     if (not force_gui) and ("--tui" in sys.argv or "--cli" in sys.argv or pi_mode):
         if pi_mode and "--tui" not in sys.argv and "--cli" not in sys.argv:
-            print("🫐 Modo Raspberry Pi detectado — se inicia TUI por defecto.")
-            print("💡 Usa 'kcmc --gui' si tienes escritorio (cuesta más RAM).")
+            print("[KubeControlMC] Modo Raspberry Pi detectado - se inicia TUI por defecto.")
+            print("[KubeControlMC] Usa 'kcmc --gui' si tienes escritorio (cuesta mas RAM).")
         # UI Mode (Textual) — se importa solo aquí (lazy) para no cargar
         # textual/rich en modo GUI
         from src.tui.app import MCSMApp
@@ -47,8 +54,8 @@ def main():
         try:
             from src.gui.app_gui import KubeControlGUI
             if pi_mode:
-                print("🫐 Modo Raspberry Pi detectado.")
-            print("🚀 Iniciando modo Gráfico (GUI)...")
+                print("[KubeControlMC] Modo Raspberry Pi detectado.")
+            print("[KubeControlMC] Iniciando modo Grafico (GUI)...")
             app = KubeControlGUI()
             app.mainloop()
         except ImportError as e:

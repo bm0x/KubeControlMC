@@ -113,6 +113,8 @@ WRAPPER="$BUILD_DIR/usr/local/bin/kcmc"
 cat <<EOF > "$WRAPPER"
 #!/bin/bash
 export TERM=xterm-256color
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
 /opt/$APP_NAME/$APP_NAME "\$@"
 EOF
 chmod 755 "$WRAPPER"

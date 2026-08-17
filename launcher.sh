@@ -5,6 +5,10 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$DIR"
 
+# Forzar locale UTF-8 (Textual y prints necesitan unicode)
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+
 # Prefer the project venv if present, otherwise fall back to system python3
 PY="python3"
 if [ -x "$DIR/.venv/bin/python" ]; then
