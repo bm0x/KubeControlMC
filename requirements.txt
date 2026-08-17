@@ -3,6 +3,7 @@
 #
 # Raspberry Pi (recomendado, ahorra RAM):  pip install -r requirements-pi.txt
 
-textual>=0.40.0
+textual>=0.40.0,<9
+rich>=13.0.0,<16
 customtkinter
 Pillow

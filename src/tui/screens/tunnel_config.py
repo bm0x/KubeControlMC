@@ -2,6 +2,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, RichLog, Label, Static
 from textual.containers import Vertical, Horizontal, Container
 from textual.app import ComposeResult
+from rich.text import Text
+from rich.markup import MarkupError
 
 from src.core import clipboard
 
@@ -99,7 +101,10 @@ class TunnelConfigScreen(ModalScreen):
 
     def log_write(self, message: str):
         log = self.query_one("#tunnel-log", RichLog)
-        log.write(message)
+        try:
+            log.write(message)
+        except MarkupError:
+            log.write(Text.from_ansi(message))
         
         # Detect URL locally too, just in case, for highlighting
         if "https://" in message and "playit.gg" in message:

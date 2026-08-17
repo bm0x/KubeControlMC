@@ -84,13 +84,13 @@ class TunnelManager:
 
                         if self.callback:
                             if "https://" in line or "claim" in line.lower():
-                                self.callback(f"[bold magenta][TUNNEL] {safe_line}[/]")
+                                self.callback(f"[bold magenta]\\[TUNNEL] {safe_line}[/]")
                             elif "error" in line.lower() or "failed" in line.lower():
-                                self.callback(f"[red][TUNNEL] {safe_line}[/red]")
+                                self.callback(f"[red]\\[TUNNEL] {safe_line}[/red]")
                             elif "started" in line.lower() or "ready" in line.lower() or "running" in line.lower():
-                                self.callback(f"[green][TUNNEL] {safe_line}[/green]")
+                                self.callback(f"[green]\\[TUNNEL] {safe_line}[/green]")
                             else:
-                                self.callback(f"[dim][TUNNEL] {safe_line}[/dim]")
+                                self.callback(f"[dim]\\[TUNNEL] {safe_line}[/dim]")
                 except OSError:
                     # PTY closed
                     break

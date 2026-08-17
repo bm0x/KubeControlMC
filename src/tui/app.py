@@ -8,6 +8,7 @@ from textual.containers import Container, Vertical, Horizontal
 from textual.worker import Worker, WorkerState
 from rich.text import Text
 from rich.highlighter import ReprHighlighter
+from rich.markup import MarkupError
 
 from src.core.jar_manager import JarManager
 from src.core.server_controller import ServerController
@@ -629,11 +630,14 @@ class MCSMApp(App):
         asyncio.create_task(self.server_controller.write(cmd))
 
     def log_write(self, message: str) -> None:
-        """Write to the SYSTEM log widget."""
+        """Write to the SYSTEM log widget (markup-safe)."""
         try:
             log = self.query_one("#system-log", RichLog)
-            log.write(message)
-        except:
+            try:
+                log.write(message)
+            except MarkupError:
+                log.write(Text.from_ansi(message))
+        except Exception:
             pass
             
     def log_server(self, message: str) -> None:

@@ -2,4 +2,5 @@
 # El núcleo es 100% stdlib. Solo se necesita Textual para la interfaz.
 # Uso:  ./launcher.sh --tui --pi
 
-textual>=0.40.0
+textual>=0.40.0,<9
+rich>=13.0.0,<16

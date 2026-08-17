@@ -73,7 +73,7 @@ class ResourceWatcher:
                 if mem is not None:
                     if mem > self.threshold_percent and not self._mem_alerted:
                         self._mem_alerted = True
-                        self.callback(f"[bold red][ALERT] System RAM critical: {mem:.0f}%[/]")
+                        self.callback(f"[bold red]\\[ALERT] System RAM critical: {mem:.0f}%[/]")
                         self.callback("[yellow]Triggering emergency optimization...[/]")
                     elif mem <= self.threshold_percent - 5:
                         self._mem_alerted = False
@@ -87,7 +87,7 @@ class ResourceWatcher:
                         break
                     if rss > 1024 and not self._rss_alerted:
                         self._rss_alerted = True
-                        self.callback(f"[yellow][WARN] Server RAM: {rss} MB[/]")
+                        self.callback(f"[yellow]\\[WARN] Server RAM: {rss} MB[/]")
                     elif rss <= 900:
                         self._rss_alerted = False
 
@@ -95,5 +95,5 @@ class ResourceWatcher:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self.callback(f"[error]Watcher error: {e}[/]")
+                self.callback(f"[error]Watcher error: {str(e).replace('[', '\\\\[').replace(']', '\\\\]')}[/]")
                 await asyncio.sleep(self.interval)
