@@ -6,6 +6,7 @@ from rich.text import Text
 from rich.markup import MarkupError
 
 from src.core import clipboard
+from src.tui.markup_util import plain
 
 class TunnelConfigScreen(ModalScreen):
     CSS = """
@@ -115,12 +116,12 @@ class TunnelConfigScreen(ModalScreen):
                      self.show_claim_url(p.strip())
 
     def show_claim_url(self, url: str):
-        self.claim_url = url
+        self.claim_url = plain(url)
         area = self.query_one("#claim-area")
         link_lbl = self.query_one("#claim-link", Static)
         
         area.display = True
-        link_lbl.update(url)
+        link_lbl.update(self.claim_url)
         self.log_write(f"[bold green]¡Link generado! Copialo y ábrelo en tu navegador.[/bold green]")
 
     def on_button_pressed(self, event: Button.Pressed):
