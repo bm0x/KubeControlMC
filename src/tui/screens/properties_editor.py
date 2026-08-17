@@ -2,6 +2,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Label, Input, Header, Footer
 from textual.containers import Vertical, Horizontal, Container
 from textual.app import ComposeResult
+from rich.markup import escape
 from src.core.config_manager import ConfigManager
 
 class PropertiesEditorScreen(ModalScreen):
@@ -108,7 +109,7 @@ class PropertiesEditorScreen(ModalScreen):
         self.selected_key = key
         val = self.properties.get(key, "")
         
-        self.query_one("#key-label").update(f"[bold]{key}[/bold]:")
+        self.query_one("#key-label").update(f"[bold]{escape(key)}[/bold]:")
         inp = self.query_one("#value-input")
         inp.disabled = False
         inp.value = val

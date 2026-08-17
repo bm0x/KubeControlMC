@@ -8,7 +8,8 @@ from textual.containers import Container, Vertical, Horizontal
 from textual.worker import Worker, WorkerState
 from rich.text import Text
 from rich.highlighter import ReprHighlighter
-from rich.markup import MarkupError
+from rich.markup import MarkupError, escape
+from src.tui.markup_util import plain
 
 from src.core.jar_manager import JarManager
 from src.core.server_controller import ServerController
@@ -58,6 +59,7 @@ class MCSMApp(App):
         self.current_jar = None
         self.current_tunnel_modal = None # Reference to active modal
         self.project_type = None
+        self._player_sig = None
     def compose(self) -> ComposeResult:
         yield Header()
         
@@ -159,13 +161,13 @@ class MCSMApp(App):
     
     def on_tunnel_message(self, message: str) -> None:
         """Handle messages specifically from the tunnel manager."""
-        clean_msg = message.replace("[TUNNEL]", "").strip()
+        clean_msg = plain(message).strip()
         
         # 1. Routing to Modal if open
         if self.current_tunnel_modal:
             try:
                 self.current_tunnel_modal.log_write(message)
-            except:
+            except Exception:
                 self.current_tunnel_modal = None 
 
         tunnel_box = self.query_one("#tunnel-box")
@@ -202,24 +204,24 @@ class MCSMApp(App):
                      
                      # Logic to distinguish Java vs Bedrock by LOCAL port
                      if ":25565" in local_addr:
-                         lbl_java.update(f"Java: [bold]{public_addr}[/bold] (Copiado)")
+                         lbl_java.update(f"Java: [bold]{escape(public_addr)}[/bold] (Copiado)")
                          lbl_java.styles.background = "green"
                          # Auto-copy Java IP
                          if clipboard.copy_text(public_addr):
-                             self.log_write_universal(f"[green]IP Java copiada: {public_addr}[/green]")
+                             self.log_write_universal(f"[green]IP Java copiada: {escape(public_addr)}[/green]")
                              
                      elif ":19132" in local_addr:
-                         lbl_bedrock.update(f"Bedrock: [bold]{public_addr}[/bold]")
+                         lbl_bedrock.update(f"Bedrock: [bold]{escape(public_addr)}[/bold]")
                          lbl_bedrock.styles.background = "green"
                      
                      else:
                          # Fallback if port is different or unknown
-                         self.log_write_universal(f"[yellow]Túnel detectado en puerto no estándar: {local_addr}[/yellow]")
+                         self.log_write_universal(f"[yellow]Túnel detectado en puerto no estándar: {escape(local_addr)}[/yellow]")
                          if "udp" in message.lower():
-                             lbl_bedrock.update(f"Bedrock/UDP: [bold]{public_addr}[/bold]")
+                             lbl_bedrock.update(f"Bedrock/UDP: [bold]{escape(public_addr)}[/bold]")
                              lbl_bedrock.styles.background = "green"
                          else:
-                             lbl_java.update(f"Java/TCP: [bold]{public_addr}[/bold]")
+                             lbl_java.update(f"Java/TCP: [bold]{escape(public_addr)}[/bold]")
                              lbl_java.styles.background = "green"
              except:
                  pass
@@ -348,9 +350,9 @@ class MCSMApp(App):
                             start_new_session=True
                         )
             
-            self.log_write(f"[blue]Abriendo carpeta:[/blue] {path}")
+            self.log_write(f"[blue]Abriendo carpeta:[/blue] {escape(path)}")
         except Exception as e:
-            self.log_write(f"[red]Error abriendo carpeta: {e}[/red]")
+            self.log_write(f"[red]Error abriendo carpeta: {escape(str(e))}[/red]")
 
     def copy_logs_to_clipboard(self):
         """Copy all log content to system clipboard."""
@@ -393,9 +395,9 @@ class MCSMApp(App):
             temp_file = "/tmp/kcmc_logs.txt"
             with open(temp_file, "w") as f:
                 f.write(log_text)
-            self.log_write(f"[yellow]Logs guardados en:[/yellow] {temp_file}")
+            self.log_write(f"[yellow]Logs guardados en:[/yellow] {escape(temp_file)}")
         except Exception as e:
-            self.log_write(f"[red]Error guardando logs: {e}[/red]")
+            self.log_write(f"[red]Error guardando logs: {escape(str(e))}[/red]")
 
     def update_app(self):
         """Update the application from GitHub and restart."""
@@ -494,12 +496,12 @@ class MCSMApp(App):
                        else ConfigManager.apply_aggressive_optimization(self.server_dir))
             if changes:
                 for change in changes:
-                    self.log_write(f"[green]✓ {change}[/green]")
+                    self.log_write(f"[green]✓ {escape(change)}[/green]")
                 self.log_write("[bold yellow]Reinicia el servidor para aplicar cambios.[/bold yellow]")
             else:
                 self.log_write("[dim]No se aplicaron cambios o archivos no encontrados.[/dim]")
         except Exception as e:
-            self.log_write(f"[red]Error optimizando: {e}[/red]")
+            self.log_write(f"[red]Error optimizando: {escape(str(e))}[/red]")
 
     def sanitize_server_structure(self):
         """Run directory sanitization to fix misplaced files."""
@@ -511,13 +513,13 @@ class MCSMApp(App):
             if not report.has_issues:
                 self.log_write("[green]✓ Estructura correcta. No se encontraron problemas.[/green]")
                 summary = sanitizer.get_structure_summary()
-                self.log_write(f"[dim]JAR: {summary.get('server_jar', 'No encontrado')}[/dim]")
-                self.log_write(f"[dim]Plugins: {summary.get('plugins_count', 0)}[/dim]")
+                self.log_write(f"[dim]JAR: {escape(str(summary.get('server_jar', 'No encontrado')))}[/dim]")
+                self.log_write(f"[dim]Plugins: {escape(str(summary.get('plugins_count', 0)))}[/dim]")
                 return
             
             self.log_write(f"[yellow]⚠ Encontrados {len(report.issues)} problema(s):[/yellow]")
             for issue in report.issues:
-                self.log_write(f"[dim]  - {issue.issue_type}: {os.path.basename(issue.file_path)}[/dim]")
+                self.log_write(f"[dim]  - {escape(issue.issue_type)}: {escape(os.path.basename(issue.file_path))}[/dim]")
             
             # Perform sanitization
             result = sanitizer.sanitize(dry_run=False)
@@ -525,14 +527,14 @@ class MCSMApp(App):
             if result.success:
                 self.log_write(f"[green]✓ Reparación completada: {len(result.moved_files)} archivo(s) movidos.[/green]")
                 for moved in result.moved_files:
-                    self.log_write(f"[dim]  Movido: {os.path.basename(moved['from'])} → plugins/[/dim]")
+                    self.log_write(f"[dim]  Movido: {escape(os.path.basename(moved['from']))} → plugins/[/dim]")
             else:
                 self.log_write(f"[red]Errores durante reparación:[/red]")
                 for error in result.errors:
-                    self.log_write(f"[red]  {error}[/red]")
+                    self.log_write(f"[red]  {escape(str(error))}[/red]")
                     
         except Exception as e:
-            self.log_write(f"[red]Error en sanitización: {e}[/red]")
+            self.log_write(f"[red]Error en sanitización: {escape(str(e))}[/red]")
 
     def open_properties_editor(self):
         """Opens the properties editor modal."""
@@ -604,7 +606,7 @@ class MCSMApp(App):
             table = self.query_one("#player-list", DataTable)
             row_data = table.get_row(row_key)
             self.selected_player = row_data[0] # Name is first column
-        except:
+        except Exception:
             pass
 
     def action_kick_player(self):
@@ -617,7 +619,7 @@ class MCSMApp(App):
         reason = "Kicked by Console Admin"
         cmd = f"kick {self.selected_player} {reason}"
         
-        self.log_write(f"[bold red]Kicking {self.selected_player}...[/bold red]")
+        self.log_write(f"[bold red]Kicking {escape(self.selected_player)}...[/bold red]")
         asyncio.create_task(self.server_controller.write(cmd))
 
     def action_ban_player(self):
@@ -626,7 +628,7 @@ class MCSMApp(App):
         reason = "Banned by Console Admin"
         cmd = f"ban {self.selected_player} {reason}"
         
-        self.log_write(f"[bold red]Banning {self.selected_player}...[/bold red]")
+        self.log_write(f"[bold red]Banning {escape(self.selected_player)}...[/bold red]")
         asyncio.create_task(self.server_controller.write(cmd))
 
     def log_write(self, message: str) -> None:
@@ -662,17 +664,21 @@ class MCSMApp(App):
             pass
 
     def update_player_list(self):
-        """Refreshes the player DataTable."""
+        """Refreshes the player DataTable (solo si la lista cambió)."""
         try:
+            players = self.player_manager.get_players()
+            sig = tuple(sorted((n, p.get("rank", "User")) for n, p in players.items()))
+            if sig == self._player_sig:
+                return
+            self._player_sig = sig
+
             table = self.query_one("#player-list", DataTable)
             table.clear()
-            
-            players = self.player_manager.get_players()
             
             # Title update
             try:
                 self.query_one("#players-title").update(f"[bold]Jugadores en Línea ({len(players)})[/bold]")
-            except: 
+            except Exception:
                 pass
 
             if not players:
@@ -680,12 +686,11 @@ class MCSMApp(App):
                 
             for player, data in players.items():
                 rank = data.get("rank", "User")
-                # Style rank
-                rank_styled = f"[bold red]{rank}[/]" if rank == "OP" else f"[dim]{rank}[/]"
-                
+                # Text con estilo real (no markup en string: DataTable no lo parsea)
+                rank_text = Text(rank, style="bold red" if rank == "OP" else "dim")
                 table.add_row(
                     player,
-                    rank_styled, 
+                    rank_text,
                     data.get("ping", "?"),
                     data.get("discord", "-"),
                     data.get("balance", "-")
@@ -720,7 +725,7 @@ class MCSMApp(App):
         jars = [f for f in os.listdir(self.server_dir) if f.endswith(".jar")]
         if jars:
             self.current_jar = os.path.join(self.server_dir, jars[0])
-            self.log_write(f"[blue]Detectado JAR:[/blue] {jars[0]}")
+            self.log_write(f"[blue]Detectado JAR:[/blue] {escape(jars[0])}")
             self.query_one("#btn-start").disabled = False
             self.query_one("#btn-install").label = "Actualizar/Cambiar"
             self.query_one("#status-label").update("Estado: LISTO PARA INICIAR")
@@ -750,7 +755,7 @@ class MCSMApp(App):
         self.push_screen(InstallScreen(), install_callback)
 
     def install_server(self, project: str):
-        self.log_write(f"[cyan]Iniciando descarga de {project}...[/cyan]")
+        self.log_write(f"[cyan]Iniciando descarga de {escape(project)}...[/cyan]")
         self.project_type = project
         
         # Run in a thread - pass a lambda to ensure method is called correctly
@@ -787,8 +792,8 @@ class MCSMApp(App):
             
         except Exception as e:
             import traceback
-            self.call_from_thread(self.log_write, f"[bold red]Error en instalación:[/bold red] {e}")
-            self.call_from_thread(self.log_write, f"[dim]{traceback.format_exc()}[/dim]")
+            self.call_from_thread(self.log_write, f"[bold red]Error en instalación:[/bold red] {escape(str(e))}")
+            self.call_from_thread(self.log_write, f"[dim]{escape(traceback.format_exc())}[/dim]")
             return False
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -804,11 +809,11 @@ class MCSMApp(App):
             try:
                 g = self.plugin_manager.download_geyser()
                 f = self.plugin_manager.download_floodgate()
-                self.log_write_safe(f"[green]Instalado:[/green] {os.path.basename(g)}")
-                self.log_write_safe(f"[green]Instalado:[/green] {os.path.basename(f)}")
+                self.log_write_safe(f"[green]Instalado:[/green] {escape(os.path.basename(g))}")
+                self.log_write_safe(f"[green]Instalado:[/green] {escape(os.path.basename(f))}")
                 self.log_write_safe("[bold]Reinicia el servidor para aplicar cambios.[/bold]")
             except Exception as e:
-                self.log_write_safe(f"[red]Error instalando plugins: {e}[/red]")
+                self.log_write_safe(f"[red]Error instalando plugins: {escape(str(e))}[/red]")
         
         import threading
         threading.Thread(target=_do_install).start()
@@ -847,7 +852,7 @@ class MCSMApp(App):
                 self.query_one("#btn-tunnel").variant = "warning"
                 self.query_one("#btn-tunnel").label = "Detener Túnel"
         except Exception as e:
-            self.log_write(f"[red]Error en toggle_tunnel: {e}[/red]")
+            self.log_write(f"[red]Error en toggle_tunnel: {escape(str(e))}[/red]")
 
     def reset_tunnel_config(self):
         self.log_write("[bold orange]Reinstalando Túnel Playit.gg...[/bold orange]")
@@ -960,6 +965,6 @@ class MCSMApp(App):
         if self.server_controller:
             cmd = event.value
             self.query_one("#console-input").value = ""
-            self.log_server(f"[dim]> {cmd}[/dim]")
+            self.log_server(f"[dim]> {escape(cmd)}[/dim]")
             await self.server_controller.write(cmd)
 

@@ -60,7 +60,7 @@ class ServerController:
                     self.output_callback("[dim]session.lock eliminado.[/dim]")
             except Exception as e:
                 if self.output_callback:
-                    self.output_callback(f"[yellow]No se pudo eliminar session.lock: {e}[/yellow]")
+                    self.output_callback(f"[yellow]No se pudo eliminar session.lock: {str(e).replace('[', '\\\\[').replace(']', '\\\\]')}[/yellow]")
 
     async def start(self):
         if self.process and self.process.returncode is None:
@@ -73,7 +73,8 @@ class ServerController:
 
         # En modo Pi añade flags JVM optimizados si no vienen ya incluidos
         args = list(self.java_args)
-        if pi_profile.is_pi_mode() and not any("-XX:+UseSerialGC" in a for a in args):
+        gc_flags = ("-XX:+UseSerialGC", "-XX:+UseG1GC", "-XX:+UseZGC", "-XX:+UseShenandoahGC")
+        if pi_profile.is_pi_mode() and not any(flag in " ".join(args) for flag in gc_flags):
             xmx = next((a.split("=")[1] for a in args if a.startswith("-Xmx")), "512M")
             args = pi_profile.get_java_args(xmx)
 

@@ -97,7 +97,8 @@ class TunnelManager:
 
         except Exception as e:
             if self.callback and not self._stop_reading:
-                self.callback(f"[red][TUNNEL ERROR] {e}[/red]")
+                err = str(e).replace("[", "\\[").replace("]", "\\]")
+                self.callback(f"[red]\\[TUNNEL ERROR] {err}[/red]")
         finally:
             # Notify crash handler only on unexpected exits (not intentional stops)
             if not self._intentional_stop and self._on_crash and not self._stop_reading:
@@ -107,14 +108,14 @@ class TunnelManager:
         self._intentional_stop = False
 
         if self.callback:
-            self.callback(f"[dim]Verificando agente en: {self.agent_path}[/dim]")
+            self.callback(f"[dim]Verificando agente en: {self.agent_path.replace('[', '\\\\[').replace(']', '\\\\]')}[/dim]")
 
         if not os.path.exists(self.agent_path):
             try:
                 self.download_agent()
             except Exception as e:
                 if self.callback:
-                    self.callback(f"[red]Error descargando agente: {e}[/red]")
+                    self.callback(f"[red]Error descargando agente: {str(e).replace('[', '\\\\[').replace(']', '\\\\]')}[/red]")
                 return
 
         if self.callback:
@@ -223,11 +224,11 @@ class TunnelManager:
                     shutil.copy(installed, self.agent_path)
                     os.chmod(self.agent_path, 0o755)
                     if self.callback:
-                        self.callback(f"[green]Agente Playit.gg detectado en: {installed}[/green]")
+                        self.callback(f"[green]Agente Playit.gg detectado en: {installed.replace('[', '\\\\[').replace(']', '\\\\]')}[/green]")
                     return self.agent_path
                 except Exception as e:
                     if self.callback:
-                        self.callback(f"[yellow]No se pudo copiar playit desde {installed}: {e}[/yellow]")
+                        self.callback(f"[yellow]No se pudo copiar playit desde {installed.replace('[', '\\\\[').replace(']', '\\\\]')}: {str(e).replace('[', '\\\\[').replace(']', '\\\\]')}[/yellow]")
 
         # Linux: download the self-contained agent (pinned version for non-service installs).
         if sys.platform.startswith("linux"):
@@ -244,7 +245,7 @@ class TunnelManager:
                 return self.agent_path
             except Exception as e:
                 if self.callback:
-                    self.callback(f"[red]Error descargando playit: {e}[/red]")
+                    self.callback(f"[red]Error descargando playit: {str(e).replace('[', '\\\\[').replace(']', '\\\\]')}[/red]")
                 raise e
 
         # macOS and other platforms: no official GitHub binary.
