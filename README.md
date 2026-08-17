@@ -122,6 +122,10 @@ O instala el paquete **`kubecontrol-mc_*_arm64.deb`** desde [Releases](https://g
 - **Nightly (main)** — prerelease actualizada en cada push a `main` (amd64 + arm64)
 - **Tags `v*`** — releases estables (`git tag v1.0.1 && git push origin v1.0.1`)
 
+> El `.deb` es **autocontenido**: PyInstaller embarca Python 3.12 completo (intérprete + stdlib + dependencias) dentro del binario, así que **no necesitas instalar Python** en la Pi. Solo requiere `libc6` (siempre presente) y las librerías Tk del GUI (declaradas como `Depends` del paquete). Verifica con: `dpkg -c kubecontrol-mc_*_arm64.deb | grep libpython`
+>
+> **Datos del servidor**: en la Pi los datos (jar, mundo, configs) viven en `~/mcsm/server_bin` (nunca en `/opt`, que es de root). El binario detecta `/opt` no escribible y usa tu `~/mcsm` automáticamente.
+
 Y lanza `kcmc --tui --pi`.
 
 Cuando se detecta modo Pi automáticamente:

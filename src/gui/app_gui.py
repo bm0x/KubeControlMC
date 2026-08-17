@@ -30,6 +30,7 @@ from src.core.tunnel_manager import TunnelManager
 from src.core.player_manager import PlayerManager
 from src.core.plugin_manager import PluginManager
 from src.core.config_manager import ConfigManager
+from src.core.paths import base_dir
 
 
 class KubeControlGUI(ctk.CTk):
@@ -38,10 +39,7 @@ class KubeControlGUI(ctk.CTk):
         super().__init__(className='kubecontrol-mc')
 
         # --- Base directory setup ---
-        if getattr(sys, 'frozen', False):
-            self.base_dir = os.path.dirname(sys.executable)
-        else:
-            self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.base_dir = base_dir()
         
         self.server_dir = os.path.join(self.base_dir, "server_bin")
         if not os.path.exists(self.server_dir):

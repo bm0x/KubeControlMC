@@ -31,10 +31,13 @@ def main():
     if force_gui:
         sys.argv.remove("--gui")
 
-    # Default to GUI unless --tui or --cli is specified
-    if (not force_gui) and ("--tui" in sys.argv or "--cli" in sys.argv):
-         # UI Mode (Textual) — se importa solo aquí (lazy) para no cargar
-         # textual/rich en modo GUI
+    # Default to GUI unless --tui/--cli, or Pi mode (headless: TUI)
+    if (not force_gui) and ("--tui" in sys.argv or "--cli" in sys.argv or pi_mode):
+        if pi_mode and "--tui" not in sys.argv and "--cli" not in sys.argv:
+            print("🫐 Modo Raspberry Pi detectado — se inicia TUI por defecto.")
+            print("💡 Usa 'kcmc --gui' si tienes escritorio (cuesta más RAM).")
+        # UI Mode (Textual) — se importa solo aquí (lazy) para no cargar
+        # textual/rich en modo GUI
         from src.tui.app import MCSMApp
         app = MCSMApp()
         app.run()
@@ -45,7 +48,6 @@ def main():
             from src.gui.app_gui import KubeControlGUI
             if pi_mode:
                 print("🫐 Modo Raspberry Pi detectado.")
-                print("💡 Recomendado: usa '--tui' para ahorrar memoria (kcmc --tui --pi).")
             print("🚀 Iniciando modo Gráfico (GUI)...")
             app = KubeControlGUI()
             app.mainloop()
@@ -58,7 +60,10 @@ def main():
             app.run()
         except Exception as e:
             print(f"Crash GUI: {e}")
-            sys.exit(1)
+            print("Fallback a TUI...")
+            from src.tui.app import MCSMApp
+            app = MCSMApp()
+            app.run()
 
 if __name__ == "__main__":
     main()

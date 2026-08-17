@@ -24,6 +24,7 @@ from src.tui.screens.tunnel_config import TunnelConfigScreen
 
 from src.core.plugin_manager import PluginManager
 from src.core.tunnel_manager import TunnelManager
+from src.core.paths import base_dir
 
 class MCSMApp(App):
     """KubeControlMC - Minecraft Server Manager"""
@@ -32,8 +33,8 @@ class MCSMApp(App):
     
     def __init__(self):
         super().__init__()
-        # Use absolute path relative to this script's location
-        self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        # Directorio de datos: junto al código (dev) o ~/mcsm (paquete instalado)
+        self.base_dir = base_dir()
         self.server_dir = os.path.join(self.base_dir, "server_bin")
         
         # Modo Raspberry Pi: limita RAM, logs y trabajo del UI
